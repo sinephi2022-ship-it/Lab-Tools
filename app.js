@@ -1299,13 +1299,22 @@
                 try {
                     const snapshot = await db.collection('labs')
                         .where('isPublic', '==', true)
-                        .orderBy('createdAt', 'desc')
                         .limit(50)
                         .get();
-                    publicLabs.value = snapshot.docs.map(doc => ({ 
+                    
+                    // Sort by createdAt in client-side
+                    const labs = snapshot.docs.map(doc => ({ 
                         id: doc.id, 
                         ...doc.data() 
                     }));
+                    
+                    labs.sort((a, b) => {
+                        const aTime = a.createdAt?.toDate?.() || new Date(a.createdAt) || 0;
+                        const bTime = b.createdAt?.toDate?.() || new Date(b.createdAt) || 0;
+                        return bTime - aTime;
+                    });
+                    
+                    publicLabs.value = labs;
                 } catch (error) {
                     console.error('Error loading public labs:', error);
                     Utils.toast('Failed to load public labs', 'error');
