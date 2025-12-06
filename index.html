@@ -493,10 +493,12 @@
 
     <script>
         const { createApp, ref, computed, reactive, onMounted, watch, nextTick } = Vue;
-        const Utils = window.Utils;
+        
+        // 延迟获取全局对象，确保 config.js 已加载
+        const Utils = window.Utils || {};
         const db = window.db;
         const auth = window.auth;
-        const AVATARS = window.AVATARS;
+        const AVATARS = window.AVATARS || [];
 
         createApp({
             setup() {
