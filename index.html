@@ -794,7 +794,7 @@
         // 等待所有依赖准备就绪
         function waitForDependencies() {
             return new Promise((resolve) => {
-                const maxWait = 10000; // 10秒超时
+                const maxWait = 15000; // 15秒超时（增加容限） // 10秒超时
                 const startTime = Date.now();
                 
                 const check = () => {
@@ -811,9 +811,15 @@
                     if (hasVue && hasFirebase && hasDB && hasConfig) {
                         console.log('✅ All dependencies ready');
                         resolve();
-                    } else if (Date.now() - startTime > maxWait) {
+                    } else if (elapsed > maxWait) {
                         console.warn('⏱️ Timeout waiting for dependencies');
-                        resolve(); // Resolve anyway
+                        // 确保必要的全局变量存在
+                        if (!window.DICT) window.DICT = {};
+                        if (!window.Utils) window.Utils = {};
+                        if (!window.AVATARS) window.AVATARS = ['https://api.dicebear.com/7.x/notionists/svg?seed=Default'];
+                        if (!window.db) window.db = null;
+                        if (!window.auth) window.auth = null;
+                        resolve();
                     } else {
                         setTimeout(check, 100);
                     }
@@ -1953,6 +1959,10 @@
     </script>
 </body>
 </html>
+
+
+
+
 
 
 
