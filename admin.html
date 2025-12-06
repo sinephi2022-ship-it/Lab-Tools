@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Database Reset Tool (All-in-One)</title>
+    <!-- 引入 Firebase 库 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/9.22.0/firebase-app-compat.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/9.22.0/firebase-firestore-compat.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-red-50 p-10 font-sans">
+    <div class="max-w-2xl mx-auto bg-white p-8 rounded-xl shadow-xl border-2 border-red-200">
+        <h1 class="text-2xl font-bold text-red-600 mb-4">⚠️ DANGER: Database Reset Tool</h1>
+        <p class="mb-4 text-gray-600">This tool will wipe the 'users' and 'labs' collections and re-seed the specified users.</p>
+        
+        <!-- 日志显示区 -->
+        <div id="log" class="bg-gray-900 text-green-400 p-4 rounded h-64 overflow-y-auto font-mono text-xs mb-4 border border-gray-700">Waiting for user input...</div>
+        
+        <button id="btn" onclick="resetDatabase()" class="bg-red-600 text-white px-6 py-3 rounded-lg font-bold hover:bg-red-700 w-full transition shadow-lg">
+            EXECUTE RESET & SEED
+        </button>
+    </div>
+
+    <script>
+        // --- 1. 直接在这里配置 Firebase (不再依赖 config.js) ---
+        const firebaseConfig = {
+          apiKey: "AIzaSyDcOJyJEpVsc-asPeYvqaKnZF0oa7J3xfI",
+          authDomain: "labtool-5eb5e.firebaseapp.com",
+          projectId: "labtool-5eb5e",
+          storageBucket: "labtool-5eb5e.firebasestorage.app",
+          messagingSenderId: "686046008242",
+          appId: "1:686046008242:web:b5516ebf4eedea5afa4aab",
+          measurementId: "G-86F1TSWE56"
+        };
+
+        const logDiv = document.getElementById('log');
+        function log(msg) { 
+            console.log(msg);
+            logDiv.innerHTML += `> ${msg}<br>`; 
+            logDiv.scrollTop = logDiv.scrollHeight; 
+        }
+
+        // 初始化检查
+        let db;
+        try {
+            if (typeof firebase === 'undefined') {
+                log("ERROR: Firebase library not loaded from CDN.");
+            } else {
+                if (!firebase.apps.length) {
+                    firebase.initializeApp(firebaseConfig);
+                    log("Firebase initialized successfully.");
+                }
+                db = firebase.firestore();
+                log("Database connection ready. Click the button above.");
+            }
+        } catch (e) {
+            log("CRITICAL ERROR during init: " + e.message);
+        }
+
+        // --- 2. 用户数据 ---
+        const SEED_USERS = [
+            {
+                uid: "9sKuDlEv0ZNwTH7ZGWeAelWKURk1",
+                name: "Kensuke Nishimura",
+                email: "b234712@hiroshima-u.ac.jp",
+                avatar: "https://api.dicebear.com/7.x/notionists/svg?seed=Ken"
+            },
+            {
+                uid: "8NVDv358Crcflm19ZdmY5PoodNm1",
+                name: "越智",
+                email: "b234585@hiroshima-u.ac.jp",
+                avatar: "https://api.dicebear.com/7.x/notionists/svg?seed=Ochi"
+            },
+            {
+                uid: "ubqyNXjY1RNFM3t3zP52IebXa1D3",
+                name: "Chen",
+                email: "sinephi2022@outlook.com",
+                avatar: "https://api.dicebear.com/7.x/notionists/svg?seed=Chen"
+            }
+        ];
+
+        // --- 3. 重置逻辑 ---
+        async function resetDatabase() {
+            const btn = document.getElementById('btn');
+            
+            // 安全检查
+            if (!db) { alert("Database not connected. See log."); return; }
+            if(!confirm("Are you 100% sure? This cannot be undone.")) return;
+
+            btn.disabled = true;
+            btn.innerText = "Processing... (Do not close)";
+            btn.classList.add('opacity-50');
+
+            log("--- STARTING RESET PROCESS ---");
+
+            try {
+                // A. Delete Labs
+                log("Step 1: Deleting existing Labs...");
+                const labsQ = await db.collection('labs').get();
+                if (labsQ.empty) {
+                    log("No labs found to delete.");
+                } else {
+                    const batch = db.batch();
+                    labsQ.docs.forEach(doc => batch.delete(doc.ref));
+                    await batch.commit();
+                    log(`Deleted ${labsQ.size} labs.`);
+                }
+
+                // B. Overwrite Users
+                log("Step 2: Re-seeding Users...");
+                const allUIDs = SEED_USERS.map(u => u.uid);
+
+                for (const user of SEED_USERS) {
+                    const friends = allUIDs.filter(id => id !== user.uid);
+                    await db.collection('users').doc(user.uid).set({
+                        name: user.name,
+                        email: user.email,
+                        avatar: user.avatar,
+                        friends: friends,
+                        currentLab: null,
+                        lastSeen: Date.now(),
+                        joinedAt: new Date().toISOString()
+                    });
+                    log(`User restored: ${user.name}`);
+                }
+
+                // C. Create Demo Lab
+                log("Step 3: Creating Demo Lab for Chen...");
+                const chenUID = "ubqyNXjY1RNFM3t3zP52IebXa1D3";
+                
+                // 生成 ID 工具
+                const genId = () => Date.now().toString(36) + Math.random().toString(36).substr(2);
+
+                await db.collection('labs').add({
+                    title: "Molecular Biology Demo",
+                    ownerId: chenUID,
+                    createdAt: new Date().toISOString(),
+                    lastModified: new Date().toISOString(),
+                    elements: [
+                        {
+                            id: genId(), type: "note",
+                            x: 50, y: 50, w: 240,
+                            content: "Welcome! Try dragging this note.",
+                            color: "bg-yellow-100"
+                        },
+                        {
+                            id: genId(), type: "timer",
+                            x: 350, y: 50,
+                            name: "PCR Timer",
+                            duration: 300, isRunning: false, endTime: null
+                        },
+                        {
+                            id: genId(), type: "protocol",
+                            x: 50, y: 300, w: 400,
+                            title: "Standard Extraction",
+                            steps: [
+                                {text: "Prepare tubes", done: true},
+                                {text: "Centrifuge", done: false}
+                            ]
+                        }
+                    ]
+                });
+
+                log("--- SUCCESS! Database reset complete. ---");
+                alert("Database Reset Successfully! Now go to lobby.html");
+
+            } catch (e) {
+                log("CRITICAL ERROR: " + e.message);
+                console.error(e);
+                
+                if (e.code === 'permission-denied') {
+                    alert("权限不足！请去 Firebase Console 修改 Rules 为 'allow read, write: if true;'");
+                } else {
+                    alert("Error: " + e.message);
+                }
+            } finally {
+                btn.disabled = false;
+                btn.innerText = "EXECUTE RESET & SEED";
+                btn.classList.remove('opacity-50');
+            }
+        }
+    </script>
+</body>
+</html>
