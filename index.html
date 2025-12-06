@@ -908,15 +908,37 @@
                     const loadingScreen = document.getElementById('loading');
                     if(loadingScreen) loadingScreen.style.display = 'none';
                     view.value = 'auth';
+                    
+                    // 检测第三方存储是否被阻止
+                    const checkStorageAccess = () => {
+                        try {
+                            localStorage.setItem('_test', '1');
+                            localStorage.removeItem('_test');
+                            return true;
+                        } catch(e) {
+                            console.warn('Storage access blocked by browser');
+                            return false;
+                        }
+                    };
+                    
+                    if(!checkStorageAccess()) {
+                        console.warn('⚠️ 浏览器阻止了存储访问，请在浏览器设置中允许此站点的Cookie/存储');
+                    }
+                    
                     if(auth) {
-                        const unsub = auth.onAuthStateChanged(u => {
-                            if(u) {
-                                user.value = { uid: u.uid, email: u.email, name: u.displayName||'User', avatar: AVATARS[0] };
-                                loadUserData(u.uid);
-                                view.value = 'lobby';
-                            } else { user.value = null; view.value = 'auth'; }
-                        });
-                        unsubscribers.push(unsub);
+                        try {
+                            const unsub = auth.onAuthStateChanged(u => {
+                                if(u) {
+                                    user.value = { uid: u.uid, email: u.email, name: u.displayName||'User', avatar: AVATARS[0] };
+                                    loadUserData(u.uid);
+                                    view.value = 'lobby';
+                                } else { user.value = null; view.value = 'auth'; }
+                            });
+                            unsubscribers.push(unsub);
+                        } catch(e) {
+                            console.error('Auth error:', e);
+                            view.value = 'auth';
+                        }
                     } else {
                         setTimeout(() => { if(loadingScreen) loadingScreen.style.display = 'none'; }, 3000);
                     }
