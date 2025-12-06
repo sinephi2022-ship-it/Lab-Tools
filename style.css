@@ -7,8 +7,10 @@ body {
     overflow: hidden; /* 防止页面整体滚动 */
     -webkit-tap-highlight-color: transparent;
     -webkit-text-size-adjust: 100%;
+    -moz-text-size-adjust: 100%;
     text-size-adjust: 100%;
     -webkit-user-select: text;
+    -moz-user-select: text;
     user-select: text;
 }
 
@@ -86,6 +88,7 @@ body {
 .lab-item {
     position: absolute;
     -webkit-user-select: none;
+    -moz-user-select: none;
     user-select: none;
     cursor: grab;
     touch-action: none;
