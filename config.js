@@ -92,8 +92,9 @@ window.DICT = {
         chat: "消息",
         typeMsg: "输入消息...",
         send: "发送",
+        reaction: "表情",
         
-        // Profile
+        // Lab
         editProfile: "编辑资料",
         save: "保存修改",
         logout: "退出登录",
@@ -201,6 +202,7 @@ window.DICT = {
         chat: "Chat",
         typeMsg: "Type message...",
         send: "Send",
+        reaction: "Emoji",
         editProfile: "Edit Profile",
         save: "Save",
         logout: "Logout",
@@ -292,6 +294,7 @@ window.DICT = {
         chat: "チャット",
         typeMsg: "入力...",
         send: "送信",
+        reaction: "絵文字",
         editProfile: "プロフィール編集",
         save: "保存",
         logout: "ログアウト",

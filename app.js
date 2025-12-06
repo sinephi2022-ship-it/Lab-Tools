@@ -354,11 +354,47 @@
                             <!-- Chat Panel -->
                             <div v-else-if="sidebarTab === 'chat'" class="flex-1 flex flex-col overflow-hidden">
                                 <!-- Messages Area -->
-                                <div class="flex-1 overflow-y-auto px-3 py-3 space-y-2">
-                                    <div v-for="msg in chatMessages" :key="msg.id" class="message-bubble">
-                                        <div class="text-xs font-semibold text-blue-600">{{ msg.userName }}</div>
-                                        <div class="text-sm text-gray-800">{{ msg.content }}</div>
-                                        <div class="text-xs text-gray-400 mt-1">{{ formatTime(msg.timestamp) }}</div>
+                                <div class="flex-1 overflow-y-auto px-3 py-3 space-y-3">
+                                    <div v-for="msg in chatMessages" :key="msg.id" class="message-bubble border-l-4 border-blue-400 bg-white p-3 rounded-lg shadow-sm">
+                                        <div class="flex items-center justify-between mb-1">
+                                            <div class="text-xs font-semibold text-blue-600">{{ msg.userName }}</div>
+                                            <span v-if="msg.edited" class="text-xs text-gray-400">(edited)</span>
+                                        </div>
+                                        
+                                        <!-- Message Content -->
+                                        <div class="text-sm text-gray-800 mb-2">{{ msg.content }}</div>
+                                        
+                                        <!-- File/Media Preview -->
+                                        <div v-if="msg.type === 'file' && msg.metadata" class="mb-2 p-2 bg-gray-100 rounded text-xs">
+                                            <i class="fa-solid fa-file"></i> {{ msg.metadata.fileName }}
+                                            <span class="text-gray-500">({{ (msg.metadata.fileSize / 1024).toFixed(0) }}KB)</span>
+                                        </div>
+                                        
+                                        <!-- Reactions Display -->
+                                        <div v-if="msg.reactions && msg.reactions.length > 0" class="flex flex-wrap gap-1 mb-2">
+                                            <button v-for="(reaction, idx) in groupReactions(msg.reactions)" :key="idx" 
+                                                @click="toggleReaction(msg.id, reaction.emoji)"
+                                                class="px-2 py-1 bg-yellow-100 hover:bg-yellow-200 rounded text-xs transition">
+                                                {{ reaction.emoji }} {{ reaction.count }}
+                                            </button>
+                                        </div>
+                                        
+                                        <!-- Message Actions -->
+                                        <div class="flex gap-2 items-center text-xs">
+                                            <button @click="toggleReactionPicker(msg.id)" class="text-gray-400 hover:text-yellow-500 transition">
+                                                <i class="fa-solid fa-face-smile"></i> React
+                                            </button>
+                                            <span class="text-gray-400">{{ formatTime(msg.timestamp) }}</span>
+                                        </div>
+                                        
+                                        <!-- Reaction Picker (if visible) -->
+                                        <div v-if="activeReactionPickerId === msg.id" class="mt-2 flex flex-wrap gap-2 p-2 bg-gray-50 rounded">
+                                            <button v-for="emoji in ['👍', '❤️', '😂', '🎉', '👏', '🚀']" :key="emoji"
+                                                @click="addReactionToMessage(msg.id, emoji)"
+                                                class="text-xl hover:scale-125 transition cursor-pointer">
+                                                {{ emoji }}
+                                            </button>
+                                        </div>
                                     </div>
                                     <div v-if="chatMessages.length === 0" class="text-center text-gray-400 py-6">
                                         {{ t('noData') }}
@@ -370,10 +406,14 @@
                                     <form @submit.prevent="sendChatMessage" class="flex gap-2">
                                         <input v-model="chatInput" type="text" :placeholder="t('typeMsg')"
                                             class="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:border-blue-500 outline-none">
+                                        <button type="button" @click="uploadChatFile" class="text-gray-600 hover:text-blue-600 transition px-2">
+                                            <i class="fa-solid fa-paperclip"></i>
+                                        </button>
                                         <button type="submit" class="bg-blue-600 text-white px-3 py-2 rounded-lg hover:bg-blue-700 transition font-semibold">
                                             {{ t('send') }}
                                         </button>
                                     </form>
+                                    <input ref="fileInput" type="file" class="hidden" @change="handleFileUpload">
                                 </div>
                             </div>
                         </div>
@@ -418,6 +458,8 @@
                 }
                 return labs.value;
             });
+            const activeReactionPickerId = ref(null);
+            const fileInput = ref(null);
             
             const formatDate = (date) => {
                 if (!date) return '';
@@ -702,6 +744,59 @@
                 }
             };
             
+            const groupReactions = (reactions) => {
+                const grouped = {};
+                reactions.forEach(r => {
+                    if (!grouped[r.emoji]) {
+                        grouped[r.emoji] = { emoji: r.emoji, count: 0 };
+                    }
+                    grouped[r.emoji].count++;
+                });
+                return Object.values(grouped);
+            };
+            
+            const toggleReactionPicker = (messageId) => {
+                activeReactionPickerId.value = activeReactionPickerId.value === messageId ? null : messageId;
+            };
+            
+            const addReactionToMessage = async (messageId, emoji) => {
+                if (!chat.value) return;
+                try {
+                    await chat.value.addReaction(messageId, emoji);
+                    activeReactionPickerId.value = null;
+                } catch (err) {
+                    console.error('Add reaction error:', err);
+                }
+            };
+            
+            const toggleReaction = async (messageId, emoji) => {
+                if (!chat.value) return;
+                try {
+                    await chat.value.addReaction(messageId, emoji);
+                } catch (err) {
+                    console.error('Toggle reaction error:', err);
+                }
+            };
+            
+            const uploadChatFile = () => {
+                fileInput.value?.click();
+            };
+            
+            const handleFileUpload = async (event) => {
+                const file = event.target.files?.[0];
+                if (!file || !chat.value) return;
+                
+                try {
+                    Utils.toast('Uploading file...', 'info');
+                    await chat.value.uploadFile(file);
+                    Utils.toast('File uploaded!', 'success');
+                    fileInput.value.value = '';
+                } catch (err) {
+                    console.error('File upload error:', err);
+                    Utils.toast('Failed to upload file', 'error');
+                }
+            };
+            
             const toggleConnectionMode = () => {
                 isDrawingConnection.value = !isDrawingConnection.value;
                 if (isDrawingConnection.value) {
@@ -940,7 +1035,15 @@
                 collection,
                 lobbyTab,
                 displayLabs,
-                toggleFavorite
+                toggleFavorite,
+                activeReactionPickerId,
+                fileInput,
+                groupReactions,
+                toggleReactionPicker,
+                addReactionToMessage,
+                toggleReaction,
+                uploadChatFile,
+                handleFileUpload
             };
         }
     });
