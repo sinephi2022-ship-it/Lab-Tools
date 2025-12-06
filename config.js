@@ -1,32 +1,51 @@
-// config.js - Wait for Firebase to load before initializing
-(function() {
-    // 等待firebase脚本加载
-    if (typeof firebase === 'undefined') {
-        console.warn('Waiting for Firebase...');
-        return;
-    }
+// config.js - robust Firebase init (waits for scripts to be ready)
+const firebaseConfig = {
+    apiKey: "AIzaSyDcOJyJEpVsc-asPeYvqaKnZF0oa7J3xfI",
+    authDomain: "labtool-5eb5e.firebaseapp.com",
+    projectId: "labtool-5eb5e",
+    storageBucket: "labtool-5eb5e.firebasestorage.app",
+    messagingSenderId: "686046008242",
+    appId: "1:686046008242:web:b5516ebf4eedea5afa4aab",
+    measurementId: "G-86F1TSWE56"
+};
 
-    const firebaseConfig = {
-        apiKey: "AIzaSyDcOJyJEpVsc-asPeYvqaKnZF0oa7J3xfI",
-        authDomain: "labtool-5eb5e.firebaseapp.com",
-        projectId: "labtool-5eb5e",
-        storageBucket: "labtool-5eb5e.firebasestorage.app",
-        messagingSenderId: "686046008242",
-        appId: "1:686046008242:web:b5516ebf4eedea5afa4aab",
-        measurementId: "G-86F1TSWE56"
-    };
+function initFirebaseWithRetry(maxWaitMs = 10000) {
+    const start = Date.now();
+    return new Promise((resolve, reject) => {
+        const attempt = () => {
+            // 等待 firebase 脚本加载
+            if (typeof firebase === 'undefined') {
+                if (Date.now() - start > maxWaitMs) {
+                    const msg = 'Firebase script not loaded within timeout';
+                    console.error(msg);
+                    return reject(new Error(msg));
+                }
+                return setTimeout(attempt, 100);
+            }
 
-    try {
-        if (!firebase.apps.length) {
-            firebase.initializeApp(firebaseConfig);
-            window.db = firebase.firestore();
-            window.auth = firebase.auth();
-            console.log("✅ Firebase Ready");
-        }
-    } catch (e) {
-        console.error("❌ Firebase Init Error:", e.message);
-    }
-})();
+            try {
+                if (!firebase.apps.length) {
+                    firebase.initializeApp(firebaseConfig);
+                }
+
+                // 确保全局可用
+                if (!window.db) window.db = firebase.firestore();
+                if (!window.auth) window.auth = firebase.auth();
+
+                console.log('✅ Firebase Ready');
+                resolve();
+            } catch (e) {
+                console.error('❌ Firebase Init Error:', e.message || e);
+                reject(e);
+            }
+        };
+
+        attempt();
+    });
+}
+
+// 开始初始化（不阻塞页面，其余逻辑会等待 window.db/window.auth）
+initFirebaseWithRetry().catch(() => {});
 
 // 多语言字典
 window.DICT = {

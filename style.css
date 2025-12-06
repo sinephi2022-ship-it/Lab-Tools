@@ -6,6 +6,10 @@ body {
     color: #1e293b;
     overflow: hidden; /* 防止页面整体滚动 */
     -webkit-tap-highlight-color: transparent;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    -webkit-user-select: text;
+    user-select: text;
 }
 
 .no-scrollbar::-webkit-scrollbar { display: none; }

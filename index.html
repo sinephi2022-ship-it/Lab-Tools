@@ -4,21 +4,23 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>LabMate Pro</title>
-    <!-- Caching & Security Headers (Meta) -->
+    <!-- Security & UX Meta -->
     <meta http-equiv="X-Content-Type-Options" content="nosniff">
-    <meta http-equiv="X-Frame-Options" content="SAMEORIGIN">
+    <!-- Note: frame-ancestors cannot be enforced via meta on GitHub Pages; keep CSP basic here. Vue in-browser compiler needs 'unsafe-eval'. -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' https: data: blob:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https:; style-src 'self' 'unsafe-inline' https:;">
     <meta name="theme-color" content="#2563eb">
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='30' fill='%232563eb'/%3E%3Ctext x='32' y='40' text-anchor='middle' font-size='28' fill='white' font-family='Arial,Helvetica,sans-serif'%3EL%3C/text%3E%3C/svg%3E">
     
     <!-- Tailwind & Icons -->
-    <script src="https://cdn.tailwindcss.com?v=1"></script>
+    <script src="https://cdn.tailwindcss.com?v=1" onerror="this.onerror=null;this.src='https://cdn.jsdelivr.net/npm/tailwindcss@3.3.3/lib/index.min.js'"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css?v=6.4.0" rel="stylesheet">
     <link rel="stylesheet" href="style.css?v=2025">
     
     <!-- Vue & Firebase (MUST load in order) -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/vue/3.3.4/vue.global.prod.min.js?v=3.3.4"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/9.22.0/firebase-app-compat.min.js?v=9.22.0"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/9.22.0/firebase-auth-compat.min.js?v=9.22.0"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/9.22.0/firebase-firestore-compat.min.js?v=9.22.0"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/vue/3.3.4/vue.global.prod.min.js?v=3.3.4" onerror="this.onerror=null;this.src='https://cdn.jsdelivr.net/npm/vue@3.3.4/dist/vue.global.prod.js'"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/9.22.0/firebase-app-compat.min.js?v=9.22.0" onerror="this.onerror=null;this.src='https://cdn.jsdelivr.net/npm/firebase@9.22.0/firebase-app-compat.min.js'"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/9.22.0/firebase-auth-compat.min.js?v=9.22.0" onerror="this.onerror=null;this.src='https://cdn.jsdelivr.net/npm/firebase@9.22.0/firebase-auth-compat.min.js'"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/9.22.0/firebase-firestore-compat.min.js?v=9.22.0" onerror="this.onerror=null;this.src='https://cdn.jsdelivr.net/npm/firebase@9.22.0/firebase-firestore-compat.min.js'"></script>
     <script src="config.js?v=2025"></script>
     
     <style>
@@ -109,9 +111,9 @@
                     <button v-for="l in ['zh','en','ja']" @click="lang=l" :class="lang===l?'text-blue-600 font-bold underline':'text-gray-400'" class="hover:text-blue-500 transition">{{l.toUpperCase()}}</button>
                 </div>
                 <form @submit.prevent="handleAuth" class="space-y-4">
-                    <div v-if="authMode=='signup'"><input id="signup-name" name="name" aria-label="Full Name" v-model="form.name" class="w-full bg-gray-50 border border-gray-200 p-3 rounded-xl outline-none focus:border-blue-500" :placeholder="t('name')" required></div>
-                    <input id="login-email" name="email" aria-label="Email Address" v-model="form.email" type="email" class="w-full bg-gray-50 border border-gray-200 p-3 rounded-xl outline-none focus:border-blue-500" :placeholder="t('email')" required>
-                    <input id="login-password" name="password" aria-label="Password" v-model="form.password" type="password" class="w-full bg-gray-50 border border-gray-200 p-3 rounded-xl outline-none focus:border-blue-500" :placeholder="t('password')" required>
+                    <div v-if="authMode=='signup'"><input id="signup-name" name="name" aria-label="Full Name" autocomplete="name" v-model="form.name" class="w-full bg-gray-50 border border-gray-200 p-3 rounded-xl outline-none focus:border-blue-500" :placeholder="t('name')" required></div>
+                    <input id="login-email" name="email" aria-label="Email Address" autocomplete="email" v-model="form.email" type="email" class="w-full bg-gray-50 border border-gray-200 p-3 rounded-xl outline-none focus:border-blue-500" :placeholder="t('email')" required>
+                    <input id="login-password" name="password" aria-label="Password" autocomplete="current-password" v-model="form.password" type="password" class="w-full bg-gray-50 border border-gray-200 p-3 rounded-xl outline-none focus:border-blue-500" :placeholder="t('password')" required>
                     <button class="w-full bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 shadow-lg">{{ authMode=='login'?t('login'):t('signup') }}</button>
                 </form>
                 <div class="text-center mt-6">
@@ -791,6 +793,11 @@
                     const hasFirebase = typeof firebase !== 'undefined';
                     const hasDB = window.db && window.auth;
                     const hasConfig = window.DICT && window.Utils && window.AVATARS;
+
+                    // 如果 Firebase 已加载但 db/auth 尚未就绪，主动再尝试初始化
+                    if (hasFirebase && !hasDB && typeof initFirebaseWithRetry === 'function') {
+                        initFirebaseWithRetry(5000).catch(() => {});
+                    }
                     
                     if (hasVue && hasFirebase && hasDB && hasConfig) {
                         console.log('✅ All dependencies ready');
@@ -813,6 +820,15 @@
             const db = window.db;
             const auth = window.auth;
             const AVATARS = window.AVATARS || [];
+
+            // 如果依赖仍未就绪，显示错误提示，避免空白页
+            if (!db || !auth) {
+                const loadingEl = document.getElementById('loading');
+                if (loadingEl) {
+                    loadingEl.innerHTML = '<div class="text-center text-white"><p class="text-2xl font-bold">⚠️ 初始化失败</p><p class="mt-2">无法连接到 Firebase，请检查网络或稍后重试。</p></div>';
+                }
+                return;
+            }
 
             createApp({
             setup() {
@@ -889,7 +905,7 @@
                 const unsubs = {};
 
                 onMounted(() => {
-                    const loadingScreen = document.getElementById('loading-screen');
+                    const loadingScreen = document.getElementById('loading');
                     if(loadingScreen) loadingScreen.style.display = 'none';
                     view.value = 'auth';
                     if(auth) {
@@ -920,6 +936,18 @@
                         }
                     };
                     window.addEventListener('keydown', keyboardHandler);
+
+                    // 自动为缺少 title 的按钮和缺少 alt 的图片补充可访问性文本，避免占位符
+                    setTimeout(() => {
+                        document.querySelectorAll('button:not([title])').forEach(btn => {
+                            const label = (btn.innerText || btn.getAttribute('aria-label') || '').trim();
+                            if (label) btn.setAttribute('title', label);
+                        });
+                        document.querySelectorAll('img:not([alt])').forEach(img => {
+                            const label = (img.getAttribute('title') || 'Image').trim();
+                            img.setAttribute('alt', label);
+                        });
+                    }, 0);
                 });
 
                 const loadUserData = (uid) => {
