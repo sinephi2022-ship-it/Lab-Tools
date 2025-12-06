@@ -86,6 +86,7 @@ window.DICT = {
         role: "角色",
         editor: "编辑者",
         viewer: "查看者",
+        favorites: "收藏夹",
         
         // Chat
         chat: "消息",
@@ -196,6 +197,7 @@ window.DICT = {
         role: "Role",
         editor: "Editor",
         viewer: "Viewer",
+        favorites: "Favorites",
         chat: "Chat",
         typeMsg: "Type message...",
         send: "Send",
@@ -286,6 +288,7 @@ window.DICT = {
         role: "ロール",
         editor: "編集者",
         viewer: "閲覧者",
+        favorites: "お気に入り",
         chat: "チャット",
         typeMsg: "入力...",
         send: "送信",

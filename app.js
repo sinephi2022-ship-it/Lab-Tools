@@ -96,7 +96,17 @@
                 <div v-else-if="view === 'lobby'" class="flex-1 overflow-auto bg-gray-50 p-6">
                     <div class="max-w-6xl mx-auto">
                         <div class="flex items-center justify-between mb-6">
-                            <h2 class="text-2xl font-bold">{{ t('myLabs') }}</h2>
+                            <div class="flex gap-4 items-center">
+                                <h2 class="text-2xl font-bold">{{ lobbyTab === 'all' ? t('myLabs') : t('collection') }}</h2>
+                                <div class="flex gap-2 bg-white rounded-lg p-1">
+                                    <button @click="lobbyTab = 'all'" class="px-4 py-1 rounded font-bold transition" :class="{ 'bg-blue-600 text-white': lobbyTab === 'all', 'text-gray-600 hover:bg-gray-100': lobbyTab !== 'all' }">
+                                        {{ t('myLabs') }}
+                                    </button>
+                                    <button @click="lobbyTab = 'favorites'" class="px-4 py-1 rounded font-bold transition" :class="{ 'bg-blue-600 text-white': lobbyTab === 'favorites', 'text-gray-600 hover:bg-gray-100': lobbyTab !== 'favorites' }">
+                                        <i class="fa-solid fa-star"></i> {{ t('favorites') }}
+                                    </button>
+                                </div>
+                            </div>
                             <div class="flex gap-3">
                                 <button @click="loadLabs(user.uid)" class="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition">
                                     <i class="fa-solid fa-refresh"></i> {{ t('refresh') }}
@@ -108,15 +118,20 @@
                         </div>
                         
                         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            <div v-for="lab in labs" :key="lab.id" class="bg-white rounded-lg shadow p-4 cursor-pointer hover:shadow-lg transition">
+                            <div v-for="lab in displayLabs" :key="lab.id" class="bg-white rounded-lg shadow p-4 cursor-pointer hover:shadow-lg transition">
                                 <div class="flex items-start justify-between mb-3">
                                     <div class="flex-1" @click="enterLab(lab.id)">
                                         <h3 class="font-bold text-lg">{{ lab.title }}</h3>
                                         <p class="text-sm text-gray-600">{{ lab.ownerName }}</p>
                                     </div>
-                                    <button v-if="lab.ownerId === user.uid" @click.stop="deleteLab(lab.id)" class="text-red-500 hover:text-red-700">
-                                        <i class="fa-solid fa-trash"></i>
-                                    </button>
+                                    <div class="flex gap-2">
+                                        <button @click.stop="toggleFavorite(lab.id)" class="transition" :class="{ 'text-yellow-500': collection?.isFavorite(lab.id), 'text-gray-400': !collection?.isFavorite(lab.id) }">
+                                            <i class="fa-solid fa-star"></i>
+                                        </button>
+                                        <button v-if="lab.ownerId === user.uid" @click.stop="deleteLab(lab.id)" class="text-red-500 hover:text-red-700">
+                                            <i class="fa-solid fa-trash"></i>
+                                        </button>
+                                    </div>
                                 </div>
                                 <div class="flex gap-2 mb-3">
                                     <span v-if="lab.isPublic" class="text-xs bg-green-100 text-green-700 px-2 py-1 rounded">{{ t('isPublic') }}</span>
@@ -127,7 +142,7 @@
                             </div>
                         </div>
                         
-                        <div v-if="labs.length === 0" class="text-center py-12">
+                        <div v-if="displayLabs.length === 0" class="text-center py-12">
                             <p class="text-gray-500 text-lg">{{ t('noLabs') }}</p>
                         </div>
                     </div>
@@ -395,6 +410,14 @@
             const showInviteMemberModal = ref(false);
             const inviteEmail = ref('');
             const inviteRole = ref('editor');
+            const collection = ref(null);
+            const lobbyTab = ref('all');
+            const displayLabs = computed(() => {
+                if (lobbyTab.value === 'favorites' && collection.value) {
+                    return collection.value.getFavoriteLabs(labs.value);
+                }
+                return labs.value;
+            });
             
             const formatDate = (date) => {
                 if (!date) return '';
@@ -541,6 +564,23 @@
                     } catch (error) {
                         Utils.toast(error.message, 'error');
                     }
+                }
+            };
+            
+            const toggleFavorite = async (labId) => {
+                if (!collection.value) return;
+                
+                try {
+                    if (collection.value.isFavorite(labId)) {
+                        await collection.value.removeFromFavorites(labId);
+                        Utils.toast('Removed from favorites', 'success');
+                    } else {
+                        await collection.value.addToFavorites(labId);
+                        Utils.toast('Added to favorites', 'success');
+                    }
+                } catch (err) {
+                    console.error('Toggle favorite error:', err);
+                    Utils.toast('Failed to update favorite', 'error');
                 }
             };
             
@@ -826,9 +866,12 @@
             
             onMounted(() => {
                 // Monitor auth state
-                auth.onAuthStateChanged((u) => {
+                auth.onAuthStateChanged(async (u) => {
                     user.value = u;
                     if (u) {
+                        // Initialize collection
+                        collection.value = new window.LabCollection(u.uid, db);
+                        await collection.value.init();
                         loadLabs(u.uid);
                     }
                 });
@@ -893,7 +936,11 @@
                 inviteEmail,
                 inviteRole,
                 inviteMember,
-                acceptInvitation
+                acceptInvitation,
+                collection,
+                lobbyTab,
+                displayLabs,
+                toggleFavorite
             };
         }
     });
