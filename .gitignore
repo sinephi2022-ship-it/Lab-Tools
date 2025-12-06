@@ -1,0 +1,65 @@
+# Dependencies
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+*.sublime-project
+*.sublime-workspace
+
+# Build output
+dist/
+build/
+.cache/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Backup files
+*.bak
+*.backup
+*~
+*.tmp
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Firebase
+.firebase/
+.firebaserc
+
+# Local development
+.local
+localhost:*
+
+# Browser caches
+.cache
+*.crx
+
+# Misc
+.history/
+.vuepress/dist/
+.nuxt/
+dist/
+.cache/
+.vuepress/dist/
+coverage/
+
+# Node
+node_modules/
+package-lock.json
+yarn.lock
