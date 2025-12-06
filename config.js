@@ -1,26 +1,32 @@
-// config.js
-const firebaseConfig = {
-  apiKey: "AIzaSyDcOJyJEpVsc-asPeYvqaKnZF0oa7J3xfI",
-  authDomain: "labtool-5eb5e.firebaseapp.com",
-  projectId: "labtool-5eb5e",
-  storageBucket: "labtool-5eb5e.firebasestorage.app",
-  messagingSenderId: "686046008242",
-  appId: "1:686046008242:web:b5516ebf4eedea5afa4aab",
-  measurementId: "G-86F1TSWE56"
-};
-
-// 初始化 Firebase
-try {
-    if (typeof firebase !== 'undefined' && !firebase.apps.length) {
-        firebase.initializeApp(firebaseConfig);
-        // 挂载到 window 确保全局访问
-        window.db = firebase.firestore();
-        window.auth = firebase.auth();
-        console.log("🔥 Firebase Connected");
+// config.js - Wait for Firebase to load before initializing
+(function() {
+    // 等待firebase脚本加载
+    if (typeof firebase === 'undefined') {
+        console.warn('Waiting for Firebase...');
+        return;
     }
-} catch (e) {
-    console.error("Config Error:", e);
-}
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyDcOJyJEpVsc-asPeYvqaKnZF0oa7J3xfI",
+        authDomain: "labtool-5eb5e.firebaseapp.com",
+        projectId: "labtool-5eb5e",
+        storageBucket: "labtool-5eb5e.firebasestorage.app",
+        messagingSenderId: "686046008242",
+        appId: "1:686046008242:web:b5516ebf4eedea5afa4aab",
+        measurementId: "G-86F1TSWE56"
+    };
+
+    try {
+        if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+            window.db = firebase.firestore();
+            window.auth = firebase.auth();
+            console.log("✅ Firebase Ready");
+        }
+    } catch (e) {
+        console.error("❌ Firebase Init Error:", e.message);
+    }
+})();
 
 // 多语言字典
 window.DICT = {

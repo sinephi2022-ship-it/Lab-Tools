@@ -4,20 +4,22 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>LabMate Pro</title>
-    <!-- Relaxed CSP -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' https: data: blob:;">
+    <!-- Caching & Security Headers (Meta) -->
+    <meta http-equiv="X-Content-Type-Options" content="nosniff">
+    <meta http-equiv="X-Frame-Options" content="SAMEORIGIN">
+    <meta name="theme-color" content="#2563eb">
     
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <!-- Tailwind & Icons -->
+    <script src="https://cdn.tailwindcss.com?v=1"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css?v=6.4.0" rel="stylesheet">
+    <link rel="stylesheet" href="style.css?v=2025">
     
-    <!-- Vue & Firebase -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/vue/3.3.4/vue.global.prod.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/9.22.0/firebase-app-compat.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/9.22.0/firebase-auth-compat.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/9.22.0/firebase-firestore-compat.min.js"></script>
-    
-    <script src="config.js"></script>
-    <link rel="stylesheet" href="style.css">
+    <!-- Vue & Firebase (MUST load in order) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/vue/3.3.4/vue.global.prod.min.js?v=3.3.4"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/9.22.0/firebase-app-compat.min.js?v=9.22.0"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/9.22.0/firebase-auth-compat.min.js?v=9.22.0"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/9.22.0/firebase-firestore-compat.min.js?v=9.22.0"></script>
+    <script src="config.js?v=2025"></script>
     
     <style>
         /* Vue不cloak */
@@ -768,14 +770,52 @@
 
     </div>
 
+    <!-- Loading Indicator -->
+    <div id="loading" class="fixed inset-0 bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center z-[10000]">
+        <div class="text-center">
+            <div class="w-16 h-16 border-4 border-white border-t-blue-300 rounded-full animate-spin mx-auto mb-4"></div>
+            <p class="text-white text-xl font-bold">LabMate Pro</p>
+            <p class="text-blue-100 text-sm mt-2">Loading...</p>
+        </div>
+    </div>
+
     <script>
         const { createApp, ref, computed, reactive, onMounted, watch, nextTick, onUnmounted } = Vue;
-        const Utils = window.Utils || {};
-        const db = window.db;
-        const auth = window.auth;
-        const AVATARS = window.AVATARS || [];
+        
+        // 等待所有依赖准备就绪
+        function waitForDependencies() {
+            return new Promise((resolve) => {
+                const maxWait = 10000; // 10秒超时
+                const startTime = Date.now();
+                
+                const check = () => {
+                    const hasVue = typeof Vue !== 'undefined' && Vue.createApp;
+                    const hasFirebase = typeof firebase !== 'undefined';
+                    const hasDB = window.db && window.auth;
+                    const hasConfig = window.DICT && window.Utils && window.AVATARS;
+                    
+                    if (hasVue && hasFirebase && hasDB && hasConfig) {
+                        console.log('✅ All dependencies ready');
+                        resolve();
+                    } else if (Date.now() - startTime > maxWait) {
+                        console.warn('⏱️ Timeout waiting for dependencies');
+                        resolve(); // Resolve anyway
+                    } else {
+                        setTimeout(check, 100);
+                    }
+                };
+                check();
+            });
+        }
 
-        createApp({
+        // 初始化应用
+        waitForDependencies().then(() => {
+            const Utils = window.Utils || {};
+            const db = window.db;
+            const auth = window.auth;
+            const AVATARS = window.AVATARS || [];
+
+            createApp({
             setup() {
                 // 清理函数跟踪
                 const unsubscribers = [];
@@ -1825,6 +1865,19 @@
                 };
             }
         }).mount('#app');
+
+            // 隐藏加载指示器
+            const loadingEl = document.getElementById('loading');
+            if (loadingEl) loadingEl.style.display = 'none';
+            
+            console.log('🚀 App mounted successfully');
+        }).catch(err => {
+            console.error('App initialization failed:', err);
+            const loadingEl = document.getElementById('loading');
+            if (loadingEl) {
+                loadingEl.innerHTML = '<div class="text-center text-white"><p class="text-2xl font-bold">⚠️ Error</p><p class="mt-2">Failed to load application</p><p class="text-sm mt-2">Check console for details</p></div>';
+            }
+        });
     </script>
 </body>
 </html>
