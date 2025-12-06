@@ -127,6 +127,7 @@ window.DICT = {
         dropHere: "拖拽文件到此处",
         confirmDel: "确定要删除吗？",
         deleted: "已删除",
+        sent: "已发送",
         saved: "已保存",
         added: "已添加",
         
@@ -195,6 +196,7 @@ window.DICT = {
         dropHere: "Drop files here",
         confirmDel: "Are you sure?",
         deleted: "Deleted",
+        sent: "Sent",
         saved: "Saved",
         added: "Added",
         language: "Language",
@@ -261,6 +263,7 @@ window.DICT = {
         dropHere: "ここにドロップ",
         confirmDel: "削除しますか？",
         deleted: "削除しました",
+        sent: "送信しました",
         saved: "保存しました",
         added: "追加しました",
         language: "言語",

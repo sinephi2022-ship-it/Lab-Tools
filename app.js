@@ -134,52 +134,91 @@
                         <!-- Canvas Area -->
                         <div ref="canvasContainer" class="flex-1 relative overflow-hidden bg-gradient-to-br from-slate-50 to-slate-100"></div>
                         
-                        <!-- Right Toolbar -->
-                        <div class="w-64 bg-white border-l shadow-lg flex flex-col">
-                            <div class="px-4 py-4 border-b">
-                                <h3 class="font-bold text-lg mb-4">{{ t('tools') }}</h3>
-                                <div class="grid grid-cols-2 gap-2">
-                                    <button @click="addElement('note')" class="bg-blue-100 text-blue-700 p-2 rounded text-sm hover:bg-blue-200">
-                                        <i class="fa-solid fa-sticky-note"></i> {{ t('note') }}
-                                    </button>
-                                    <button @click="addElement('timer')" class="bg-red-100 text-red-700 p-2 rounded text-sm hover:bg-red-200">
-                                        <i class="fa-solid fa-hourglass-end"></i> {{ t('timer') }}
-                                    </button>
-                                    <button @click="addElement('protocol')" class="bg-green-100 text-green-700 p-2 rounded text-sm hover:bg-green-200">
-                                        <i class="fa-solid fa-list-check"></i> {{ t('protocol') }}
-                                    </button>
-                                    <button @click="addElement('text')" class="bg-purple-100 text-purple-700 p-2 rounded text-sm hover:bg-purple-200">
-                                        <i class="fa-solid fa-font"></i> {{ t('text') }}
-                                    </button>
-                                </div>
-                            </div>
-                            
-                            <!-- Element Editor -->
-                            <div v-if="selectedElementId" class="flex-1 overflow-auto px-4 py-4">
-                                <h4 class="font-bold mb-3">{{ t('editing') }}</h4>
-                                <div class="space-y-3">
-                                    <div>
-                                        <label class="block text-sm font-semibold mb-1">{{ t('content') }}</label>
-                                        <textarea v-model="editingContent" @change="updateSelectedElement" 
-                                            class="w-full px-2 py-2 border border-gray-300 rounded text-sm font-mono" rows="4"></textarea>
-                                    </div>
-                                    <div>
-                                        <label class="block text-sm font-semibold mb-1">{{ t('color') }}</label>
-                                        <input v-model="editingColor" @change="updateSelectedElement" type="color" class="w-full h-10 border rounded">
-                                    </div>
-                                    <button @click="deleteSelectedElement" class="w-full bg-red-500 text-white py-2 rounded hover:bg-red-600 text-sm">
-                                        {{ t('delete') }}
-                                    </button>
-                                </div>
-                            </div>
-                            
-                            <!-- Canvas Info -->
-                            <div class="px-4 py-4 border-t text-xs text-gray-500 mt-auto">
-                                <p>{{ t('elements') }}: {{ canvasElements.length }}</p>
-                                <p>{{ t('selected') }}: {{ canvasSelectedCount }}</p>
-                                <button @click="zoomToFit" class="mt-3 w-full bg-gray-200 text-gray-700 py-2 rounded hover:bg-gray-300 text-sm">
-                                    {{ t('zoomFit') }}
+                        <!-- Right Sidebar -->
+                        <div class="w-80 bg-white border-l shadow-lg flex flex-col">
+                            <!-- Tab Switcher -->
+                            <div class="flex border-b">
+                                <button @click="sidebarTab = 'tools'" :class="sidebarTab === 'tools' ? 'bg-blue-50 border-b-2 border-blue-600' : 'hover:bg-gray-50'" class="flex-1 py-3 font-semibold text-sm">
+                                    {{ t('tools') }}
                                 </button>
+                                <button @click="sidebarTab = 'chat'" :class="sidebarTab === 'chat' ? 'bg-blue-50 border-b-2 border-blue-600' : 'hover:bg-gray-50'" class="flex-1 py-3 font-semibold text-sm">
+                                    {{ t('chat') }} ({{ chatMessages.length }})
+                                </button>
+                            </div>
+                            
+                            <!-- Tools Panel -->
+                            <div v-if="sidebarTab === 'tools'" class="flex-1 flex flex-col overflow-hidden">
+                                <div class="px-4 py-4 border-b">
+                                    <h3 class="font-bold text-lg mb-4">{{ t('tools') }}</h3>
+                                    <div class="grid grid-cols-2 gap-2">
+                                        <button @click="addElement('note')" class="bg-yellow-100 text-yellow-700 p-2 rounded text-xs hover:bg-yellow-200 transition">
+                                            <i class="fa-solid fa-sticky-note"></i> {{ t('note') }}
+                                        </button>
+                                        <button @click="addElement('timer')" class="bg-red-100 text-red-700 p-2 rounded text-xs hover:bg-red-200 transition">
+                                            <i class="fa-solid fa-hourglass-end"></i> {{ t('timer') }}
+                                        </button>
+                                        <button @click="addElement('protocol')" class="bg-green-100 text-green-700 p-2 rounded text-xs hover:bg-green-200 transition">
+                                            <i class="fa-solid fa-list-check"></i> {{ t('protocol') }}
+                                        </button>
+                                        <button @click="addElement('text')" class="bg-purple-100 text-purple-700 p-2 rounded text-xs hover:bg-purple-200 transition">
+                                            <i class="fa-solid fa-font"></i> {{ t('text') }}
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                <!-- Element Editor -->
+                                <div v-if="selectedElementId" class="flex-1 overflow-auto px-4 py-4">
+                                    <h4 class="font-bold mb-3">{{ t('editing') }}</h4>
+                                    <div class="space-y-3">
+                                        <div>
+                                            <label class="block text-sm font-semibold mb-1">{{ t('content') }}</label>
+                                            <textarea v-model="editingContent" @change="updateSelectedElement" 
+                                                class="w-full px-2 py-2 border border-gray-300 rounded text-xs font-mono" rows="4"></textarea>
+                                        </div>
+                                        <div>
+                                            <label class="block text-sm font-semibold mb-1">{{ t('color') }}</label>
+                                            <input v-model="editingColor" @change="updateSelectedElement" type="color" class="w-full h-10 border rounded">
+                                        </div>
+                                        <button @click="deleteSelectedElement" class="w-full bg-red-500 text-white py-2 rounded hover:bg-red-600 text-sm font-semibold">
+                                            {{ t('delete') }}
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                <!-- Canvas Info -->
+                                <div class="px-4 py-4 border-t text-xs text-gray-600 mt-auto space-y-2">
+                                    <p><i class="fa-solid fa-cube text-blue-600"></i> {{ t('elements') }}: {{ canvasElements.length }}</p>
+                                    <p><i class="fa-solid fa-check-double text-blue-600"></i> {{ t('selected') }}: {{ canvasSelectedCount }}</p>
+                                    <button @click="zoomToFit" class="mt-3 w-full bg-gray-200 text-gray-700 py-2 rounded hover:bg-gray-300 text-sm font-semibold transition">
+                                        <i class="fa-solid fa-expand"></i> {{ t('zoomFit') }}
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <!-- Chat Panel -->
+                            <div v-else class="flex-1 flex flex-col overflow-hidden">
+                                <!-- Messages Area -->
+                                <div class="flex-1 overflow-y-auto px-3 py-3 space-y-2">
+                                    <div v-for="msg in chatMessages" :key="msg.id" class="message-bubble">
+                                        <div class="text-xs font-semibold text-blue-600">{{ msg.userName }}</div>
+                                        <div class="text-sm text-gray-800">{{ msg.content }}</div>
+                                        <div class="text-xs text-gray-400 mt-1">{{ formatTime(msg.timestamp) }}</div>
+                                    </div>
+                                    <div v-if="chatMessages.length === 0" class="text-center text-gray-400 py-6">
+                                        {{ t('noData') }}
+                                    </div>
+                                </div>
+                                
+                                <!-- Input Area -->
+                                <div class="px-3 py-3 border-t bg-gray-50">
+                                    <form @submit.prevent="sendChatMessage" class="flex gap-2">
+                                        <input v-model="chatInput" type="text" :placeholder="t('typeMsg')"
+                                            class="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:border-blue-500 outline-none">
+                                        <button type="submit" class="bg-blue-600 text-white px-3 py-2 rounded-lg hover:bg-blue-700 transition font-semibold">
+                                            {{ t('send') }}
+                                        </button>
+                                    </form>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -203,9 +242,22 @@
             const selectedElementId = ref(null);
             const editingContent = ref('');
             const editingColor = ref('#ffffff');
+            const sidebarTab = ref('tools');
+            const chatMessages = ref([]);
+            const chatInput = ref('');
+            const chat = ref(null);
             
             const t = (key) => {
                 return DICT[currentLang.value]?.[key] || key;
+            };
+            
+            const formatTime = (timestamp) => {
+                if (!timestamp) return '';
+                const date = timestamp.toDate?.() || new Date(timestamp);
+                return date.toLocaleTimeString(currentLang.value === 'zh' ? 'zh-CN' : 'en-US', {
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
             };
             
             const handleAuth = async () => {
@@ -292,6 +344,34 @@
                     // Initialize canvas in next tick
                     await nextTick();
                     initCanvas();
+                    
+                    // Initialize chat
+                    initChat(labId);
+                } catch (error) {
+                    Utils.toast(error.message, 'error');
+                }
+            };
+            
+            const initChat = (labId) => {
+                if (chat.value) {
+                    chat.value.destroy();
+                }
+                
+                chat.value = new window.LabChat(labId, user.value.uid, db, auth, DICT[currentLang.value]);
+                chat.value.onMessagesChange((messages) => {
+                    chatMessages.value = messages;
+                });
+                
+                chat.value.init();
+            };
+            
+            const sendChatMessage = async () => {
+                if (!chatInput.value.trim() || !chat.value) return;
+                
+                try {
+                    await chat.value.sendMessage(chatInput.value);
+                    chatInput.value = '';
+                    Utils.toast(t('sent'), 'success');
                 } catch (error) {
                     Utils.toast(error.message, 'error');
                 }
@@ -415,6 +495,10 @@
                     canvas.value.destroy();
                     canvas.value = null;
                 }
+                if (chat.value) {
+                    chat.value.destroy();
+                    chat.value = null;
+                }
             });
             
             return {
@@ -433,7 +517,11 @@
                 selectedElementId,
                 editingContent,
                 editingColor,
+                sidebarTab,
+                chatMessages,
+                chatInput,
                 t,
+                formatTime,
                 handleAuth,
                 handleGoogleLogin,
                 logout,
@@ -444,7 +532,8 @@
                 updateSelectedElement,
                 deleteSelectedElement,
                 zoomToFit,
-                exportReport
+                exportReport,
+                sendChatMessage
             };
         }
     });
