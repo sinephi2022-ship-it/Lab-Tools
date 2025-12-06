@@ -324,15 +324,18 @@
             const addElement = (type) => {
                 if (!canvas.value) return;
                 
-                const newEl = canvas.value.addElement({
-                    type,
+                const elementId = window.Utils.generateId();
+                const newEl = window.createElement(type, elementId, {
                     x: -canvas.value.panX / canvas.value.zoom + 100,
                     y: -canvas.value.panY / canvas.value.zoom + 100,
-                    content: t(type),
+                    content: window.DICT[currentLang.value][type] || type,
                     color: { note: '#fef08a', timer: '#fca5a5', protocol: '#a7f3d0', text: '#e9d5ff', file: '#dbeafe' }[type] || '#ffffff'
                 });
                 
+                canvas.value.elements.push(newEl.toJSON());
                 canvasElements.value = canvas.value.elements;
+                
+                Utils.toast(t('added'), 'success');
             };
             
             const updateSelectedElement = () => {
