@@ -95,26 +95,90 @@
                 <!-- Lobby -->
                 <div v-else-if="view === 'lobby'" class="flex-1 overflow-auto bg-gray-50 p-6">
                     <div class="max-w-6xl mx-auto">
-                        <h2 class="text-2xl font-bold mb-6">{{ t('myLabs') }}</h2>
-                        <button @click="showCreateLabModal = true" class="mb-6 bg-blue-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-blue-700">
-                            {{ t('createLab') }}
-                        </button>
+                        <div class="flex items-center justify-between mb-6">
+                            <h2 class="text-2xl font-bold">{{ t('myLabs') }}</h2>
+                            <div class="flex gap-3">
+                                <button @click="loadLabs(user.uid)" class="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition">
+                                    <i class="fa-solid fa-refresh"></i> {{ t('refresh') }}
+                                </button>
+                                <button @click="showCreateLabModal = true" class="bg-blue-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-blue-700 transition">
+                                    <i class="fa-solid fa-plus"></i> {{ t('createLab') }}
+                                </button>
+                            </div>
+                        </div>
                         
                         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                             <div v-for="lab in labs" :key="lab.id" class="bg-white rounded-lg shadow p-4 cursor-pointer hover:shadow-lg transition">
-                                <div class="flex items-start justify-between">
+                                <div class="flex items-start justify-between mb-3">
                                     <div class="flex-1" @click="enterLab(lab.id)">
                                         <h3 class="font-bold text-lg">{{ lab.title }}</h3>
-                                        <p class="text-sm text-gray-600">Owner: {{ lab.ownerName }}</p>
-                                        <span v-if="lab.isPublic" class="text-xs bg-green-100 text-green-700 px-2 py-1 rounded">{{ t('isPublic') }}</span>
-                                        <span v-else class="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded">{{ t('isPrivate') }}</span>
+                                        <p class="text-sm text-gray-600">{{ lab.ownerName }}</p>
                                     </div>
                                     <button v-if="lab.ownerId === user.uid" @click.stop="deleteLab(lab.id)" class="text-red-500 hover:text-red-700">
                                         <i class="fa-solid fa-trash"></i>
                                     </button>
                                 </div>
+                                <div class="flex gap-2 mb-3">
+                                    <span v-if="lab.isPublic" class="text-xs bg-green-100 text-green-700 px-2 py-1 rounded">{{ t('isPublic') }}</span>
+                                    <span v-else class="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded">{{ t('isPrivate') }}</span>
+                                    <span class="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">{{ lab.members?.length || 1 }} {{ t('members') }}</span>
+                                </div>
+                                <p class="text-xs text-gray-500">{{ formatDate(lab.createdAt) }}</p>
                             </div>
                         </div>
+                        
+                        <div v-if="labs.length === 0" class="text-center py-12">
+                            <p class="text-gray-500 text-lg">{{ t('noLabs') }}</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Create Lab Modal -->
+                <div v-if="showCreateLabModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                    <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
+                        <h3 class="text-2xl font-bold mb-4">{{ t('createLab') }}</h3>
+                        <form @submit.prevent="createLab" class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-semibold mb-2">{{ t('labName') }}</label>
+                                <input v-model="createLabForm.title" type="text" required
+                                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-blue-500 outline-none">
+                            </div>
+                            
+                            <div>
+                                <label class="block text-sm font-semibold mb-2">{{ t('description') }}</label>
+                                <textarea v-model="createLabForm.description" 
+                                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-blue-500 outline-none" rows="3"></textarea>
+                            </div>
+                            
+                            <div>
+                                <label class="block text-sm font-semibold mb-2">{{ t('visibility') }}</label>
+                                <div class="flex gap-4">
+                                    <label class="flex items-center gap-2 cursor-pointer">
+                                        <input v-model="createLabForm.isPublic" type="radio" :value="true">
+                                        <span>{{ t('isPublic') }}</span>
+                                    </label>
+                                    <label class="flex items-center gap-2 cursor-pointer">
+                                        <input v-model="createLabForm.isPublic" type="radio" :value="false">
+                                        <span>{{ t('isPrivate') }}</span>
+                                    </label>
+                                </div>
+                            </div>
+                            
+                            <div>
+                                <label class="block text-sm font-semibold mb-2">{{ t('password') }} ({{ t('optional') }})</label>
+                                <input v-model="createLabForm.password" type="password"
+                                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-blue-500 outline-none">
+                            </div>
+                            
+                            <div class="flex gap-3 pt-4">
+                                <button type="submit" class="flex-1 bg-blue-600 text-white py-2 rounded-lg font-bold hover:bg-blue-700 transition">
+                                    {{ t('create') }}
+                                </button>
+                                <button @click="showCreateLabModal = false" type="button" class="flex-1 bg-gray-300 text-gray-700 py-2 rounded-lg font-bold hover:bg-gray-400 transition">
+                                    {{ t('cancel') }}
+                                </button>
+                            </div>
+                        </form>
                     </div>
                 </div>
                 
@@ -282,6 +346,15 @@
             const isDrawingConnection = ref(false);
             const connections = ref([]);
             const selectedConnection = ref(null);
+            const createLabForm = reactive({ title: '', description: '', isPublic: true, password: '' });
+            
+            const formatDate = (date) => {
+                if (!date) return '';
+                const d = new Date(typeof date === 'string' ? date : date.toDate?.() || date);
+                return d.toLocaleDateString(currentLang.value === 'zh' ? 'zh-CN' : 'en-US', { 
+                    year: 'numeric', month: 'short', day: 'numeric' 
+                });
+            };
             
             const t = (key) => {
                 return DICT[currentLang.value]?.[key] || key;
@@ -347,6 +420,58 @@
                     form.name = '';
                 } catch (error) {
                     Utils.toast(error.message, 'error');
+                }
+            };
+            
+            const createLab = async () => {
+                if (!createLabForm.value.title.trim()) {
+                    Utils.toast('Please enter a lab name', 'error');
+                    return;
+                }
+                
+                try {
+                    const labId = window.Utils.generateId();
+                    const now = new Date().toISOString();
+                    const labData = {
+                        id: labId,
+                        title: createLabForm.value.title,
+                        description: createLabForm.value.description,
+                        ownerId: user.value.uid,
+                        ownerName: user.value.displayName || user.value.email,
+                        ownerAvatar: user.value.photoURL,
+                        isPublic: createLabForm.value.isPublic,
+                        password: createLabForm.value.password || null,
+                        members: [user.value.uid],
+                        memberNames: [user.value.displayName || user.value.email],
+                        createdAt: now,
+                        updatedAt: now,
+                        elements: [],
+                        connections: [],
+                        canvasState: {
+                            zoom: 1,
+                            offsetX: 0,
+                            offsetY: 0
+                        }
+                    };
+                    
+                    await db.collection('labs').doc(labId).set(labData);
+                    
+                    // Add to user's labs array
+                    await db.collection('users').doc(user.value.uid).update({
+                        labs: firebase.firestore.FieldValue.arrayUnion(labId)
+                    });
+                    
+                    showCreateLabModal.value = false;
+                    const title = createLabForm.value.title;
+                    createLabForm.value = { title: '', description: '', isPublic: true, password: '' };
+                    Utils.toast(`Lab "${title}" created!`, 'success');
+                    
+                    // Load labs and enter new lab
+                    await loadLabs(user.value.uid);
+                    enterLab(labId);
+                } catch (err) {
+                    console.error('Create lab error:', err);
+                    Utils.toast('Failed to create lab', 'error');
                 }
             };
             
@@ -623,6 +748,7 @@
                 handleAuth,
                 handleGoogleLogin,
                 logout,
+                createLab,
                 loadLabs,
                 deleteLab,
                 enterLab,
@@ -635,7 +761,9 @@
                 toggleConnectionMode,
                 getConnectionLabel,
                 selectConnection,
-                deleteSelectedConnection
+                deleteSelectedConnection,
+                createLabForm,
+                formatDate
             };
         }
     });
