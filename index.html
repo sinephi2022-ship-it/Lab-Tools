@@ -780,8 +780,6 @@
     </div>
 
     <script>
-        const { createApp, ref, computed, reactive, onMounted, watch, nextTick, onUnmounted } = Vue;
-        
         // 等待所有依赖准备就绪
         function waitForDependencies() {
             return new Promise((resolve) => {
@@ -810,6 +808,7 @@
 
         // 初始化应用
         waitForDependencies().then(() => {
+            const { createApp, ref, computed, reactive, onMounted, watch, nextTick, onUnmounted } = Vue;
             const Utils = window.Utils || {};
             const db = window.db;
             const auth = window.auth;
