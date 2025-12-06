@@ -141,6 +141,9 @@
                                 <button @click="sidebarTab = 'tools'" :class="sidebarTab === 'tools' ? 'bg-blue-50 border-b-2 border-blue-600' : 'hover:bg-gray-50'" class="flex-1 py-3 font-semibold text-sm">
                                     {{ t('tools') }}
                                 </button>
+                                <button @click="sidebarTab = 'connections'" :class="sidebarTab === 'connections' ? 'bg-blue-50 border-b-2 border-blue-600' : 'hover:bg-gray-50'" class="flex-1 py-3 font-semibold text-sm text-xs">
+                                    {{ t('connections') }} ({{ connections.length }})
+                                </button>
                                 <button @click="sidebarTab = 'chat'" :class="sidebarTab === 'chat' ? 'bg-blue-50 border-b-2 border-blue-600' : 'hover:bg-gray-50'" class="flex-1 py-3 font-semibold text-sm">
                                     {{ t('chat') }} ({{ chatMessages.length }})
                                 </button>
@@ -195,8 +198,38 @@
                                 </div>
                             </div>
                             
+                            <!-- Connections Panel -->
+                            <div v-else-if="sidebarTab === 'connections'" class="flex-1 flex flex-col overflow-hidden">
+                                <div class="px-4 py-4 border-b">
+                                    <h3 class="font-bold text-lg">{{ t('connections') }}</h3>
+                                    <div class="grid grid-cols-2 gap-2 mt-3">
+                                        <button @click="toggleConnectionMode" :class="isDrawingConnection ? 'bg-blue-600 text-white' : 'bg-blue-100 text-blue-700'" 
+                                            class="p-2 rounded text-xs hover:opacity-80 transition font-semibold">
+                                            <i class="fa-solid fa-link"></i> {{ isDrawingConnection ? t('drawingConnection') : t('drawConnection') }}
+                                        </button>
+                                        <button @click="deleteSelectedConnection" v-if="selectedConnection" class="bg-red-100 text-red-700 p-2 rounded text-xs hover:bg-red-200 transition">
+                                            <i class="fa-solid fa-trash"></i> {{ t('delete') }}
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                <!-- Connections List -->
+                                <div class="flex-1 overflow-auto px-4 py-3">
+                                    <div v-if="connections.length === 0" class="text-center text-gray-400 py-6">
+                                        {{ t('noConnections') }}
+                                    </div>
+                                    <div v-for="conn in connections" :key="conn.id" 
+                                        @click="selectConnection(conn.id)"
+                                        :class="selectedConnection?.id === conn.id ? 'bg-blue-100 border-blue-500' : 'hover:bg-gray-50'"
+                                        class="p-3 mb-2 border rounded cursor-pointer transition">
+                                        <div class="text-sm font-semibold text-gray-700">{{ getConnectionLabel(conn) }}</div>
+                                        <div class="text-xs text-gray-500 mt-1">{{ conn.label || '(no label)' }}</div>
+                                    </div>
+                                </div>
+                            </div>
+                            
                             <!-- Chat Panel -->
-                            <div v-else class="flex-1 flex flex-col overflow-hidden">
+                            <div v-else-if="sidebarTab === 'chat'" class="flex-1 flex flex-col overflow-hidden">
                                 <!-- Messages Area -->
                                 <div class="flex-1 overflow-y-auto px-3 py-3 space-y-2">
                                     <div v-for="msg in chatMessages" :key="msg.id" class="message-bubble">
@@ -246,6 +279,9 @@
             const chatMessages = ref([]);
             const chatInput = ref('');
             const chat = ref(null);
+            const isDrawingConnection = ref(false);
+            const connections = ref([]);
+            const selectedConnection = ref(null);
             
             const t = (key) => {
                 return DICT[currentLang.value]?.[key] || key;
@@ -377,6 +413,32 @@
                 }
             };
             
+            const toggleConnectionMode = () => {
+                isDrawingConnection.value = !isDrawingConnection.value;
+                if (isDrawingConnection.value) {
+                    Utils.toast(t('selectElement'), 'info');
+                }
+            };
+            
+            const getConnectionLabel = (conn) => {
+                const fromEl = canvas.value?.getElement(conn.fromElementId);
+                const toEl = canvas.value?.getElement(conn.toElementId);
+                return `${fromEl?.type || '?'} → ${toEl?.type || '?'}`;
+            };
+            
+            const selectConnection = (connId) => {
+                selectedConnection.value = canvas.value?.connectionManager?.getConnection(connId);
+            };
+            
+            const deleteSelectedConnection = () => {
+                if (!selectedConnection.value || !canvas.value?.connectionManager) return;
+                
+                canvas.value.connectionManager.removeConnection(selectedConnection.value.id);
+                connections.value = canvas.value.connectionManager.connections;
+                selectedConnection.value = null;
+                Utils.toast(t('deleted'), 'success');
+            };
+            
             const initCanvas = () => {
                 if (!canvasContainer.value || canvas.value) return;
                 
@@ -391,6 +453,12 @@
                     canvasElements.value = canvas.value.elements;
                 } else {
                     canvasElements.value = [];
+                }
+                
+                // Load existing connections
+                if (currentLab.value?.connections && canvas.value.connectionManager) {
+                    canvas.value.connectionManager.import(currentLab.value.connections);
+                    connections.value = canvas.value.connectionManager.connections;
                 }
                 
                 // Handle element selection
@@ -447,6 +515,11 @@
                 if (!canvas.value || !currentLab.value) return;
                 
                 const canvasData = canvas.value.export();
+                const connectionsList = canvas.value.connectionManager ? 
+                    canvas.value.connectionManager.connections.map(c => 
+                        `<li>${getConnectionLabel(c)}</li>`
+                    ).join('') : '';
+                
                 const elementsList = canvasData.elements.map(e => 
                     `<div style="margin: 10px 0; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
                         <strong>${e.type}:</strong> ${e.content}
@@ -459,6 +532,7 @@
                     <p>Generated: ${new Date().toLocaleString()}</p>
                     <h3>Elements (${canvasData.elements.length})</h3>
                     ${elementsList}
+                    ${connectionsList ? `<h3>Connections (${canvas.value.connectionManager.connections.length})</h3><ul>${connectionsList}</ul>` : ''}
                 `;
                 
                 Utils.exportWord(currentLab.value.title, html);
@@ -470,9 +544,30 @@
                 
                 try {
                     const data = canvas.value.export();
+                    const connections = canvas.value.connectionManager ? 
+                        canvas.value.connectionManager.export() : [];
+                    
                     await db.collection('labs').doc(currentLab.value.id).update({
                         elements: data.elements,
+                        connections: connections,
                         view: data.view,
+                        updatedAt: new Date()
+                    });
+                } catch (error) {
+                    console.error('Save error:', error);
+                }
+            }, 300));
+            
+            // Watch for connection changes
+            watch(() => connections.value.length, Utils.debounce(async () => {
+                if (!canvas.value || !currentLab.value) return;
+                
+                try {
+                    const connections = canvas.value.connectionManager ? 
+                        canvas.value.connectionManager.export() : [];
+                    
+                    await db.collection('labs').doc(currentLab.value.id).update({
+                        connections: connections,
                         updatedAt: new Date()
                     });
                 } catch (error) {
@@ -520,6 +615,9 @@
                 sidebarTab,
                 chatMessages,
                 chatInput,
+                isDrawingConnection,
+                connections,
+                selectedConnection,
                 t,
                 formatTime,
                 handleAuth,
@@ -533,7 +631,11 @@
                 deleteSelectedElement,
                 zoomToFit,
                 exportReport,
-                sendChatMessage
+                sendChatMessage,
+                toggleConnectionMode,
+                getConnectionLabel,
+                selectConnection,
+                deleteSelectedConnection
             };
         }
     });
