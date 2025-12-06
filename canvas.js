@@ -42,6 +42,9 @@ class LabCanvas {
         this.lastMousePos = { x: 0, y: 0 };
         this.isPanning = false;
         this.panStart = null;
+        this.panVelocity = { x: 0, y: 0 };  // For momentum panning
+        this.lastPanTime = 0;
+        this.lastPanPos = null;
         
         // Performance
         this.animationFrameId = null;
@@ -159,10 +162,21 @@ class LabCanvas {
         this.lastMousePos = { x: screenX, y: screenY };
         
         if (this.isPanning && this.panStart) {
+            // Calculate velocity for momentum
+            const now = Date.now();
+            const timeDelta = Math.max(1, now - this.lastPanTime);
+            
+            if (this.lastPanPos) {
+                this.panVelocity.x = (screenX - this.lastPanPos.x) / timeDelta * 16; // Normalize to 60fps
+                this.panVelocity.y = (screenY - this.lastPanPos.y) / timeDelta * 16;
+            }
+            
             // Pan canvas
             this.panX += screenX - this.panStart.x;
             this.panY += screenY - this.panStart.y;
             this.panStart = { x: screenX, y: screenY };
+            this.lastPanPos = { x: screenX, y: screenY };
+            this.lastPanTime = now;
         } else if (this.isDragging && this.dragStart) {
             // Drag selected elements
             const dx = worldPos.x - this.dragStart.x;
@@ -205,8 +219,34 @@ class LabCanvas {
         this.draggedElements.clear();
         this.dragStart = null;
         this.panStart = null;
+        this.lastPanPos = null;
         this.selectedBox = null;
         this.isDirty = true;
+        
+        // Apply momentum if panning
+        if (Math.abs(this.panVelocity.x) > 0.1 || Math.abs(this.panVelocity.y) > 0.1) {
+            this.applyMomentum();
+        }
+    }
+    
+    /**
+     * Apply momentum/inertia to panning
+     */
+    applyMomentum() {
+        const momentum = () => {
+            if (Math.abs(this.panVelocity.x) > 0.1 || Math.abs(this.panVelocity.y) > 0.1) {
+                this.panX += this.panVelocity.x;
+                this.panY += this.panVelocity.y;
+                
+                // Friction - slow down
+                this.panVelocity.x *= 0.94;
+                this.panVelocity.y *= 0.94;
+                
+                this.isDirty = true;
+                requestAnimationFrame(momentum);
+            }
+        };
+        requestAnimationFrame(momentum);
     }
     
     /**

@@ -274,26 +274,74 @@
                             
                             <!-- Tools Panel -->
                             <div v-if="sidebarTab === 'tools'" class="flex-1 flex flex-col overflow-hidden">
-                                <div class="px-4 py-4 border-b">
+                                <div class="px-4 py-4 border-b overflow-y-auto">
                                     <h3 class="font-bold text-lg mb-4">{{ t('tools') }}</h3>
-                                    <div class="grid grid-cols-2 gap-2">
-                                        <button @click="addElement('note')" class="bg-yellow-100 text-yellow-700 p-2 rounded text-xs hover:bg-yellow-200 transition">
-                                            <i class="fa-solid fa-sticky-note"></i> {{ t('note') }}
-                                        </button>
-                                        <button @click="addElement('timer')" class="bg-red-100 text-red-700 p-2 rounded text-xs hover:bg-red-200 transition">
-                                            <i class="fa-solid fa-hourglass-end"></i> {{ t('timer') }}
-                                        </button>
-                                        <button @click="addElement('protocol')" class="bg-green-100 text-green-700 p-2 rounded text-xs hover:bg-green-200 transition">
-                                            <i class="fa-solid fa-list-check"></i> {{ t('protocol') }}
-                                        </button>
-                                        <button @click="addElement('text')" class="bg-purple-100 text-purple-700 p-2 rounded text-xs hover:bg-purple-200 transition">
-                                            <i class="fa-solid fa-font"></i> {{ t('text') }}
-                                        </button>
+                                    
+                                    <!-- Element Creation -->
+                                    <div class="mb-4">
+                                        <p class="text-xs font-semibold text-gray-600 mb-2">{{ t('addElement') }}</p>
+                                        <div class="grid grid-cols-2 gap-2">
+                                            <button @click="addElement('note')" class="bg-yellow-100 text-yellow-700 p-2 rounded text-xs hover:bg-yellow-200 transition">
+                                                <i class="fa-solid fa-sticky-note"></i> {{ t('note') }}
+                                            </button>
+                                            <button @click="addElement('timer')" class="bg-red-100 text-red-700 p-2 rounded text-xs hover:bg-red-200 transition">
+                                                <i class="fa-solid fa-hourglass-end"></i> {{ t('timer') }}
+                                            </button>
+                                            <button @click="addElement('protocol')" class="bg-green-100 text-green-700 p-2 rounded text-xs hover:bg-green-200 transition">
+                                                <i class="fa-solid fa-list-check"></i> {{ t('protocol') }}
+                                            </button>
+                                            <button @click="addElement('text')" class="bg-purple-100 text-purple-700 p-2 rounded text-xs hover:bg-purple-200 transition">
+                                                <i class="fa-solid fa-font"></i> {{ t('text') }}
+                                            </button>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Canvas Controls -->
+                                    <div class="mb-4">
+                                        <p class="text-xs font-semibold text-gray-600 mb-2">{{ t('canvasControl') }}</p>
+                                        <div class="grid grid-cols-2 gap-2">
+                                            <button @click="zoomToFit" class="bg-blue-100 text-blue-700 p-2 rounded text-xs hover:bg-blue-200 transition">
+                                                <i class="fa-solid fa-expand"></i> {{ t('zoomFit') }}
+                                            </button>
+                                            <button @click="toggleGridSnap" class="bg-indigo-100 text-indigo-700 p-2 rounded text-xs hover:bg-indigo-200 transition">
+                                                <i class="fa-solid fa-grip"></i> {{ t('gridSnap') }}
+                                            </button>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Selection Tools -->
+                                    <div v-if="canvasSelectedCount > 0" class="mb-4">
+                                        <p class="text-xs font-semibold text-gray-600 mb-2">{{ t('selectTools') }} ({{ canvasSelectedCount }})</p>
+                                        <div class="space-y-2">
+                                            <button v-if="canvasSelectedCount > 1" @click="duplicateSelectedElements" class="w-full bg-orange-100 text-orange-700 p-2 rounded text-xs hover:bg-orange-200 transition">
+                                                <i class="fa-solid fa-clone"></i> {{ t('duplicate') }}
+                                            </button>
+                                            <div v-if="canvasSelectedCount > 1" class="space-y-2">
+                                                <p class="text-xs font-semibold text-gray-500">{{ t('align') }}</p>
+                                                <div class="grid grid-cols-2 gap-2">
+                                                    <button @click="alignSelectedElements('left')" class="bg-gray-200 text-gray-700 p-2 rounded text-xs hover:bg-gray-300 transition" title="Align Left">
+                                                        <i class="fa-solid fa-align-left"></i>
+                                                    </button>
+                                                    <button @click="alignSelectedElements('right')" class="bg-gray-200 text-gray-700 p-2 rounded text-xs hover:bg-gray-300 transition" title="Align Right">
+                                                        <i class="fa-solid fa-align-right"></i>
+                                                    </button>
+                                                    <button @click="alignSelectedElements('top')" class="bg-gray-200 text-gray-700 p-2 rounded text-xs hover:bg-gray-300 transition" title="Align Top">
+                                                        <i class="fa-solid fa-align-center"></i>
+                                                    </button>
+                                                    <button @click="alignSelectedElements('bottom')" class="bg-gray-200 text-gray-700 p-2 rounded text-xs hover:bg-gray-300 transition" title="Align Bottom">
+                                                        <i class="fa-solid fa-align-center"></i>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            <button @click="deleteSelectedElement" class="w-full bg-red-100 text-red-700 p-2 rounded text-xs hover:bg-red-200 transition">
+                                                <i class="fa-solid fa-trash"></i> {{ t('delete') }}
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
                                 
                                 <!-- Element Editor -->
-                                <div v-if="selectedElementId" class="flex-1 overflow-auto px-4 py-4">
+                                <div v-if="selectedElementId" class="flex-1 overflow-auto px-4 py-4 border-t">
                                     <h4 class="font-bold mb-3">{{ t('editing') }}</h4>
                                     <div class="space-y-3">
                                         <div>
@@ -895,6 +943,67 @@
                 }
             };
             
+            const duplicateSelectedElements = () => {
+                if (!canvas.value || canvas.value.selectedElements.size === 0) {
+                    Utils.toast('No elements selected', 'info');
+                    return;
+                }
+                
+                const originalElements = Array.from(canvas.value.selectedElements)
+                    .map(id => canvas.value.elements.find(e => e.id === id))
+                    .filter(Boolean);
+                
+                canvas.value.selectedElements.clear();
+                
+                originalElements.forEach(original => {
+                    const duplicate = window.createElement(original.type, window.Utils.generateId(), {
+                        ...original,
+                        id: window.Utils.generateId(),
+                        x: original.x + 20,
+                        y: original.y + 20
+                    });
+                    canvas.value.elements.push(duplicate.toJSON());
+                    canvas.value.selectedElements.add(duplicate.id);
+                });
+                
+                canvasElements.value = canvas.value.elements;
+                Utils.toast('Duplicated successfully', 'success');
+            };
+            
+            const toggleGridSnap = () => {
+                if (!canvas.value) return;
+                canvas.value.snapToGrid = !canvas.value.snapToGrid;
+                Utils.toast(`Grid snap ${canvas.value.snapToGrid ? 'enabled' : 'disabled'}`, 'info');
+            };
+            
+            const alignSelectedElements = (direction) => {
+                if (!canvas.value || canvas.value.selectedElements.size < 2) {
+                    Utils.toast('Select at least 2 elements', 'info');
+                    return;
+                }
+                
+                const selected = Array.from(canvas.value.selectedElements)
+                    .map(id => canvas.value.elements.find(e => e.id === id))
+                    .filter(Boolean);
+                
+                if (direction === 'left') {
+                    const minX = Math.min(...selected.map(e => e.x));
+                    selected.forEach(e => e.x = minX);
+                } else if (direction === 'right') {
+                    const maxX = Math.max(...selected.map(e => e.x + (e.width || 100)));
+                    selected.forEach(e => e.x = maxX - (e.width || 100));
+                } else if (direction === 'top') {
+                    const minY = Math.min(...selected.map(e => e.y));
+                    selected.forEach(e => e.y = minY);
+                } else if (direction === 'bottom') {
+                    const maxY = Math.max(...selected.map(e => e.y + (e.height || 60)));
+                    selected.forEach(e => e.y = maxY - (e.height || 60));
+                }
+                
+                canvasElements.value = canvas.value.elements;
+                Utils.toast(`Aligned to ${direction}`, 'success');
+            };
+            
             const exportReport = () => {
                 if (!canvas.value || !currentLab.value) return;
                 
@@ -1018,6 +1127,9 @@
                 updateSelectedElement,
                 deleteSelectedElement,
                 zoomToFit,
+                duplicateSelectedElements,
+                toggleGridSnap,
+                alignSelectedElements,
                 exportReport,
                 sendChatMessage,
                 toggleConnectionMode,
