@@ -31,6 +31,9 @@ class LabCanvas {
         this.dragStart = null;
         this.draggedElements = new Set();
         
+        // Connection management
+        this.connectionManager = null; // Will be initialized after canvas is ready
+        
         // Grid settings
         this.gridSize = 20;
         this.showGrid = true;
@@ -46,6 +49,13 @@ class LabCanvas {
         
         this.setupEventListeners();
         this.startRenderLoop();
+        
+        // Initialize connection manager
+        setTimeout(() => {
+            if (typeof window.ConnectionManager !== 'undefined') {
+                this.connectionManager = new window.ConnectionManager(this);
+            }
+        }, 100);
     }
     
     /**
@@ -509,6 +519,11 @@ class LabCanvas {
         // Apply pan and zoom
         this.ctx.translate(this.panX, this.panY);
         this.ctx.scale(this.zoom, this.zoom);
+        
+        // Draw connections first (under elements)
+        if (this.connectionManager) {
+            this.connectionManager.drawConnections(this.ctx, this.zoom, this.panX, this.panY);
+        }
         
         // Draw all elements
         for (const el of this.elements) {
