@@ -130,11 +130,57 @@
                         </div>
                     </div>
                     
-                    <div class="flex-1 relative overflow-hidden bg-gradient-to-br from-slate-50 to-slate-100">
-                        <div class="absolute inset-0 w-full h-full">
-                            <p class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-gray-400 text-lg">
-                                {{ t('loading') }}... Lab Canvas
-                            </p>
+                    <div class="flex-1 flex overflow-hidden">
+                        <!-- Canvas Area -->
+                        <div ref="canvasContainer" class="flex-1 relative overflow-hidden bg-gradient-to-br from-slate-50 to-slate-100"></div>
+                        
+                        <!-- Right Toolbar -->
+                        <div class="w-64 bg-white border-l shadow-lg flex flex-col">
+                            <div class="px-4 py-4 border-b">
+                                <h3 class="font-bold text-lg mb-4">{{ t('tools') }}</h3>
+                                <div class="grid grid-cols-2 gap-2">
+                                    <button @click="addElement('note')" class="bg-blue-100 text-blue-700 p-2 rounded text-sm hover:bg-blue-200">
+                                        <i class="fa-solid fa-sticky-note"></i> {{ t('note') }}
+                                    </button>
+                                    <button @click="addElement('timer')" class="bg-red-100 text-red-700 p-2 rounded text-sm hover:bg-red-200">
+                                        <i class="fa-solid fa-hourglass-end"></i> {{ t('timer') }}
+                                    </button>
+                                    <button @click="addElement('protocol')" class="bg-green-100 text-green-700 p-2 rounded text-sm hover:bg-green-200">
+                                        <i class="fa-solid fa-list-check"></i> {{ t('protocol') }}
+                                    </button>
+                                    <button @click="addElement('text')" class="bg-purple-100 text-purple-700 p-2 rounded text-sm hover:bg-purple-200">
+                                        <i class="fa-solid fa-font"></i> {{ t('text') }}
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <!-- Element Editor -->
+                            <div v-if="selectedElementId" class="flex-1 overflow-auto px-4 py-4">
+                                <h4 class="font-bold mb-3">{{ t('editing') }}</h4>
+                                <div class="space-y-3">
+                                    <div>
+                                        <label class="block text-sm font-semibold mb-1">{{ t('content') }}</label>
+                                        <textarea v-model="editingContent" @change="updateSelectedElement" 
+                                            class="w-full px-2 py-2 border border-gray-300 rounded text-sm font-mono" rows="4"></textarea>
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-semibold mb-1">{{ t('color') }}</label>
+                                        <input v-model="editingColor" @change="updateSelectedElement" type="color" class="w-full h-10 border rounded">
+                                    </div>
+                                    <button @click="deleteSelectedElement" class="w-full bg-red-500 text-white py-2 rounded hover:bg-red-600 text-sm">
+                                        {{ t('delete') }}
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <!-- Canvas Info -->
+                            <div class="px-4 py-4 border-t text-xs text-gray-500 mt-auto">
+                                <p>{{ t('elements') }}: {{ canvasElements.length }}</p>
+                                <p>{{ t('selected') }}: {{ canvasSelectedCount }}</p>
+                                <button @click="zoomToFit" class="mt-3 w-full bg-gray-200 text-gray-700 py-2 rounded hover:bg-gray-300 text-sm">
+                                    {{ t('zoomFit') }}
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -150,6 +196,13 @@
             const labs = ref([]);
             const currentLab = ref(null);
             const showCreateLabModal = ref(false);
+            const canvasContainer = ref(null);
+            const canvas = ref(null);
+            const canvasElements = ref([]);
+            const canvasSelectedCount = computed(() => canvas.value?.selectedElements.size || 0);
+            const selectedElementId = ref(null);
+            const editingContent = ref('');
+            const editingColor = ref('#ffffff');
             
             const t = (key) => {
                 return DICT[currentLang.value]?.[key] || key;
@@ -235,15 +288,114 @@
                     const labDoc = await db.collection('labs').doc(labId).get();
                     currentLab.value = { id: labId, ...labDoc.data() };
                     view.value = 'lab';
+                    
+                    // Initialize canvas in next tick
+                    await nextTick();
+                    initCanvas();
                 } catch (error) {
                     Utils.toast(error.message, 'error');
                 }
             };
             
+            const initCanvas = () => {
+                if (!canvasContainer.value || canvas.value) return;
+                
+                canvas.value = new window.LabCanvas(canvasContainer.value);
+                
+                // Load existing elements from currentLab
+                if (currentLab.value?.elements) {
+                    canvas.value.import({
+                        elements: currentLab.value.elements,
+                        view: currentLab.value.view || {}
+                    });
+                    canvasElements.value = canvas.value.elements;
+                } else {
+                    canvasElements.value = [];
+                }
+                
+                // Handle element selection
+                canvas.value.onElementDoubleClick = (element) => {
+                    selectedElementId.value = element.id;
+                    editingContent.value = element.content || '';
+                    editingColor.value = element.color || '#ffffff';
+                };
+            };
+            
+            const addElement = (type) => {
+                if (!canvas.value) return;
+                
+                const newEl = canvas.value.addElement({
+                    type,
+                    x: -canvas.value.panX / canvas.value.zoom + 100,
+                    y: -canvas.value.panY / canvas.value.zoom + 100,
+                    content: t(type),
+                    color: { note: '#fef08a', timer: '#fca5a5', protocol: '#a7f3d0', text: '#e9d5ff', file: '#dbeafe' }[type] || '#ffffff'
+                });
+                
+                canvasElements.value = canvas.value.elements;
+            };
+            
+            const updateSelectedElement = () => {
+                if (!canvas.value || !selectedElementId.value) return;
+                
+                canvas.value.updateElement(selectedElementId.value, {
+                    content: editingContent.value,
+                    color: editingColor.value
+                });
+                
+                canvasElements.value = canvas.value.elements;
+            };
+            
+            const deleteSelectedElement = () => {
+                if (!canvas.value || !selectedElementId.value) return;
+                
+                canvas.value.removeElement(selectedElementId.value);
+                selectedElementId.value = null;
+                canvasElements.value = canvas.value.elements;
+            };
+            
+            const zoomToFit = () => {
+                if (canvas.value) {
+                    canvas.value.zoomToFit();
+                }
+            };
+            
             const exportReport = () => {
-                const html = '<h1>' + currentLab.value.title + '</h1><p>Lab Report</p>';
+                if (!canvas.value || !currentLab.value) return;
+                
+                const canvasData = canvas.value.export();
+                const elementsList = canvasData.elements.map(e => 
+                    `<div style="margin: 10px 0; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
+                        <strong>${e.type}:</strong> ${e.content}
+                    </div>`
+                ).join('');
+                
+                const html = `
+                    <h1>${currentLab.value.title}</h1>
+                    <h2>Lab Report</h2>
+                    <p>Generated: ${new Date().toLocaleString()}</p>
+                    <h3>Elements (${canvasData.elements.length})</h3>
+                    ${elementsList}
+                `;
+                
                 Utils.exportWord(currentLab.value.title, html);
             };
+            
+            // Watch for canvas changes and save to Firestore
+            watch(() => canvasElements.value.length, Utils.debounce(async () => {
+                if (!canvas.value || !currentLab.value) return;
+                
+                try {
+                    const data = canvas.value.export();
+                    await db.collection('labs').doc(currentLab.value.id).update({
+                        elements: data.elements,
+                        view: data.view,
+                        updatedAt: new Date()
+                    });
+                } catch (error) {
+                    console.error('Save error:', error);
+                }
+            }, 300));
             
             onMounted(() => {
                 // Monitor auth state
@@ -255,6 +407,13 @@
                 });
             });
             
+            onUnmounted(() => {
+                if (canvas.value) {
+                    canvas.value.destroy();
+                    canvas.value = null;
+                }
+            });
+            
             return {
                 user,
                 currentLang,
@@ -264,6 +423,13 @@
                 labs,
                 currentLab,
                 showCreateLabModal,
+                canvasContainer,
+                canvas,
+                canvasElements,
+                canvasSelectedCount,
+                selectedElementId,
+                editingContent,
+                editingColor,
                 t,
                 handleAuth,
                 handleGoogleLogin,
@@ -271,6 +437,10 @@
                 loadLabs,
                 deleteLab,
                 enterLab,
+                addElement,
+                updateSelectedElement,
+                deleteSelectedElement,
+                zoomToFit,
                 exportReport
             };
         }
