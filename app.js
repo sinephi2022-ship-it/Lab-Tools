@@ -187,10 +187,54 @@
                     <div class="bg-white border-b px-6 py-3 flex items-center justify-between shadow-sm">
                         <button @click="view = 'lobby'" class="text-blue-600 hover:text-blue-700 font-bold">← {{ t('myLabs') }}</button>
                         <h2 class="text-xl font-bold">{{ currentLab.title }}</h2>
-                        <div class="flex gap-2">
+                        <div class="flex gap-2 items-center">
+                            <!-- Members -->
+                            <div class="flex items-center gap-2">
+                                <div class="flex -space-x-2">
+                                    <div v-for="member in labMembers" :key="member" class="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-purple-400 flex items-center justify-center text-white text-xs font-bold">
+                                        {{ member.charAt(0).toUpperCase() }}
+                                    </div>
+                                </div>
+                                <button v-if="currentLab.ownerId === user.uid" @click="showInviteMemberModal = true" 
+                                    class="text-blue-600 hover:text-blue-700 text-sm font-bold">
+                                    +{{ t('invite') }}
+                                </button>
+                            </div>
+                            
                             <button @click="exportReport" class="bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700">
                                 <i class="fa-solid fa-download"></i> {{ t('exportReport') }}
                             </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Invite Member Modal -->
+                    <div v-if="showInviteMemberModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                        <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
+                            <h3 class="text-2xl font-bold mb-4">{{ t('inviteMember') }}</h3>
+                            <form @submit.prevent="inviteMember" class="space-y-4">
+                                <div>
+                                    <label class="block text-sm font-semibold mb-2">{{ t('email') }}</label>
+                                    <input v-model="inviteEmail" type="email" required
+                                        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-blue-500 outline-none">
+                                </div>
+                                
+                                <div>
+                                    <label class="block text-sm font-semibold mb-2">{{ t('role') }}</label>
+                                    <select v-model="inviteRole" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-blue-500 outline-none">
+                                        <option value="editor">{{ t('editor') }}</option>
+                                        <option value="viewer">{{ t('viewer') }}</option>
+                                    </select>
+                                </div>
+                                
+                                <div class="flex gap-3 pt-4">
+                                    <button type="submit" class="flex-1 bg-blue-600 text-white py-2 rounded-lg font-bold hover:bg-blue-700 transition">
+                                        {{ t('send') }}
+                                    </button>
+                                    <button @click="showInviteMemberModal = false" type="button" class="flex-1 bg-gray-300 text-gray-700 py-2 rounded-lg font-bold hover:bg-gray-400 transition">
+                                        {{ t('cancel') }}
+                                    </button>
+                                </div>
+                            </form>
                         </div>
                     </div>
                     
@@ -347,6 +391,10 @@
             const connections = ref([]);
             const selectedConnection = ref(null);
             const createLabForm = reactive({ title: '', description: '', isPublic: true, password: '' });
+            const labMembers = ref([]);
+            const showInviteMemberModal = ref(false);
+            const inviteEmail = ref('');
+            const inviteRole = ref('editor');
             
             const formatDate = (date) => {
                 if (!date) return '';
@@ -502,6 +550,9 @@
                     currentLab.value = { id: labId, ...labDoc.data() };
                     view.value = 'lab';
                     
+                    // Load members
+                    labMembers.value = currentLab.value.memberNames || [currentLab.value.ownerName];
+                    
                     // Initialize canvas in next tick
                     await nextTick();
                     initCanvas();
@@ -510,6 +561,79 @@
                     initChat(labId);
                 } catch (error) {
                     Utils.toast(error.message, 'error');
+                }
+            };
+            
+            const inviteMember = async () => {
+                if (!inviteEmail.value.trim()) {
+                    Utils.toast('Please enter email', 'error');
+                    return;
+                }
+                
+                if (!currentLab.value) return;
+                
+                try {
+                    // Create invitation record
+                    const invitationId = window.Utils.generateId();
+                    const invitationData = {
+                        id: invitationId,
+                        labId: currentLab.value.id,
+                        labTitle: currentLab.value.title,
+                        fromUserId: user.value.uid,
+                        fromUserName: user.value.displayName || user.value.email,
+                        toEmail: inviteEmail.value,
+                        role: inviteRole.value,
+                        status: 'pending',
+                        createdAt: new Date().toISOString()
+                    };
+                    
+                    // Save invitation
+                    await db.collection('invitations').doc(invitationId).set(invitationData);
+                    
+                    // Send notification (would be email in production)
+                    Utils.toast(`Invitation sent to ${inviteEmail.value}`, 'success');
+                    
+                    showInviteMemberModal.value = false;
+                    inviteEmail.value = '';
+                    inviteRole.value = 'editor';
+                } catch (err) {
+                    console.error('Invitation error:', err);
+                    Utils.toast('Failed to send invitation', 'error');
+                }
+            };
+            
+            const acceptInvitation = async (invitationId, labId) => {
+                try {
+                    const invitationDoc = await db.collection('invitations').doc(invitationId).get();
+                    const invitation = invitationDoc.data();
+                    
+                    // Add user to lab members
+                    const labDoc = await db.collection('labs').doc(labId).get();
+                    const lab = labDoc.data();
+                    
+                    const newMembers = [...(lab.members || []), user.value.uid];
+                    const newMemberNames = [...(lab.memberNames || [lab.ownerName]), user.value.displayName || user.value.email];
+                    
+                    // Create members permissions
+                    if (!lab.permissions) {
+                        lab.permissions = {};
+                    }
+                    lab.permissions[user.value.uid] = invitation.role;
+                    
+                    await db.collection('labs').doc(labId).update({
+                        members: newMembers,
+                        memberNames: newMemberNames,
+                        permissions: lab.permissions
+                    });
+                    
+                    // Mark invitation as accepted
+                    await db.collection('invitations').doc(invitationId).update({ status: 'accepted' });
+                    
+                    Utils.toast('Lab joined successfully!', 'success');
+                    await loadLabs(user.value.uid);
+                } catch (err) {
+                    console.error('Accept invitation error:', err);
+                    Utils.toast('Failed to join lab', 'error');
                 }
             };
             
@@ -763,7 +887,13 @@
                 selectConnection,
                 deleteSelectedConnection,
                 createLabForm,
-                formatDate
+                formatDate,
+                labMembers,
+                showInviteMemberModal,
+                inviteEmail,
+                inviteRole,
+                inviteMember,
+                acceptInvitation
             };
         }
     });
