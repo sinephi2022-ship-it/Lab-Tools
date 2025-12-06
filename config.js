@@ -9,30 +9,34 @@ const firebaseConfig = {
     measurementId: "G-86F1TSWE56"
 };
 
-function initFirebaseWithRetry(maxWaitMs = 10000) {
+function initFirebaseWithRetry(maxWaitMs = 15000) {
     const start = Date.now();
     return new Promise((resolve, reject) => {
         const attempt = () => {
             // 等待 firebase 脚本加载
             if (typeof firebase === 'undefined') {
-                if (Date.now() - start > maxWaitMs) {
+                const elapsed = Date.now() - start;
+                console.log(`⏳ Firebase script loading... ${elapsed}ms`);
+                if (elapsed > maxWaitMs) {
                     const msg = 'Firebase script not loaded within timeout';
-                    console.error(msg);
+                    console.error('❌ ' + msg);
                     return reject(new Error(msg));
                 }
-                return setTimeout(attempt, 100);
+                return setTimeout(attempt, 200);
             }
 
             try {
+                console.log('📦 Firebase script found, initializing app...');
                 if (!firebase.apps.length) {
                     firebase.initializeApp(firebaseConfig);
+                    console.log('🔥 Firebase app initialized');
                 }
 
                 // 确保全局可用
                 if (!window.db) window.db = firebase.firestore();
                 if (!window.auth) window.auth = firebase.auth();
 
-                console.log('✅ Firebase Ready');
+                console.log('✅ Firebase Ready - Firestore & Auth initialized');
                 resolve();
             } catch (e) {
                 console.error('❌ Firebase Init Error:', e.message || e);
@@ -45,7 +49,10 @@ function initFirebaseWithRetry(maxWaitMs = 10000) {
 }
 
 // 开始初始化（不阻塞页面，其余逻辑会等待 window.db/window.auth）
-initFirebaseWithRetry().catch(() => {});
+console.log('🚀 Starting Firebase initialization...');
+initFirebaseWithRetry().catch((err) => {
+    console.error('Firebase init failed:', err.message);
+});
 
 // 多语言字典
 window.DICT = {
