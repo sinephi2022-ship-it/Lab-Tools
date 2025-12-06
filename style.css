@@ -1,0 +1,326 @@
+/**
+ * LabMate Pro - Custom Styles
+ * Complements Tailwind CSS with specialized components
+ */
+
+:root {
+    --primary: #2563eb;
+    --primary-dark: #1e40af;
+    --accent: #ef4444;
+    --success: #10b981;
+    --warning: #f59e0b;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+html, body {
+    width: 100%;
+    height: 100%;
+    font-family: 'Inter', system-ui, sans-serif;
+}
+
+/* Prevent text resize on orientation change */
+body {
+    -webkit-text-size-adjust: 100%;
+    -moz-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+}
+
+/* ============ v-cloak & Loading ============ */
+[v-cloak] {
+    display: none !important;
+}
+
+#app {
+    display: none !important;
+}
+
+#app.ready {
+    display: flex !important;
+}
+
+#loading-screen {
+    animation: fadeIn 0.3s ease-in;
+}
+
+#loading-screen.hidden {
+    display: none !important;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+/* ============ Canvas & Lab ============ */
+.lab-canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-image: radial-gradient(#cbd5e1 1px, transparent 1px);
+    background-size: 24px 24px;
+    cursor: grab;
+    touch-action: none;
+}
+
+.lab-canvas:active {
+    cursor: grabbing;
+}
+
+.lab-item {
+    position: absolute;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    user-select: none;
+    cursor: grab;
+    touch-action: none;
+    will-change: transform;
+}
+
+.lab-item:active {
+    cursor: grabbing;
+    z-index: 100 !important;
+}
+
+.lab-item.selected {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+}
+
+/* Element Styles */
+.note-style {
+    background: #fef3c7;
+    font-family: 'Kalam', cursive;
+    border-radius: 8px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    transform: rotate(-1deg);
+    padding: 12px;
+    overflow: hidden;
+}
+
+.timer-style {
+    background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+    color: #ef4444;
+    font-family: 'JetBrains Mono', monospace;
+    border: 3px solid #334155;
+    border-radius: 12px;
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    padding: 12px;
+    text-align: center;
+}
+
+.protocol-style {
+    background: white;
+    border-left: 4px solid var(--success);
+    border-radius: 6px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    padding: 12px;
+}
+
+/* ============ Chat ============ */
+.chat-fab {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    width: 60px;
+    height: 60px;
+    background: var(--primary);
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 10px 25px rgba(37, 99, 235, 0.4);
+    z-index: 1500;
+    cursor: pointer;
+    border: none;
+    font-size: 24px;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.chat-fab:hover {
+    transform: scale(1.1);
+    box-shadow: 0 12px 30px rgba(37, 99, 235, 0.5);
+}
+
+.chat-fab:active {
+    transform: scale(0.95);
+}
+
+.chat-badge {
+    position: absolute;
+    top: 0;
+    right: 0;
+    background: var(--accent);
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    border: 2px solid white;
+    font-size: 11px;
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+}
+
+.message-bubble {
+    max-width: 70%;
+    padding: 10px 14px;
+    border-radius: 18px;
+    word-wrap: break-word;
+    word-break: break-word;
+}
+
+.message-bubble.sent {
+    background: var(--primary);
+    color: white;
+    border-bottom-right-radius: 2px;
+}
+
+.message-bubble.received {
+    background: #e2e8f0;
+    color: #1e293b;
+    border-bottom-left-radius: 2px;
+}
+
+/* ============ Scrollbars ============ */
+.no-scrollbar::-webkit-scrollbar {
+    display: none;
+}
+
+.no-scrollbar {
+    scrollbar-width: none;
+}
+
+/* ============ Selection & Interactions ============ */
+.selection-box {
+    position: absolute;
+    border: 2px dashed var(--primary);
+    background-color: rgba(37, 99, 235, 0.1);
+    pointer-events: none;
+    z-index: 99;
+}
+
+.connection-line {
+    stroke: var(--primary);
+    stroke-width: 2;
+    fill: none;
+    pointer-events: auto;
+    cursor: pointer;
+}
+
+.connection-line:hover {
+    stroke-width: 3;
+    filter: drop-shadow(0 0 4px var(--primary));
+}
+
+/* ============ Modals ============ */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+}
+
+.modal-content {
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    max-height: 90vh;
+    overflow-y: auto;
+    animation: slideUp 0.3s ease-out;
+}
+
+@keyframes slideUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* ============ Responsive ============ */
+@media (max-width: 768px) {
+    .lab-item {
+        min-width: 60px;
+        min-height: 60px;
+    }
+    
+    .message-bubble {
+        max-width: 85%;
+    }
+    
+    .chat-fab {
+        bottom: 16px;
+        right: 16px;
+        width: 50px;
+        height: 50px;
+        font-size: 20px;
+    }
+}
+
+/* ============ Accessibility ============ */
+:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+}
+
+button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* ============ Text Utilities ============ */
+.text-truncate {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.text-clamp-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+/* ============ Animations ============ */
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+.animate-pulse {
+    animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes bounce {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-4px); }
+}
+
+.animate-bounce {
+    animation: bounce 1s infinite;
+}
