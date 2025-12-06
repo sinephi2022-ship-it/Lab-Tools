@@ -25,7 +25,16 @@
     
     <style>
         /* Vue不cloak */
-        [v-cloak] { display: none; }
+        [v-cloak] { display: none !important; }
+        
+        /* 确保app在编译后显示 */
+        #app { 
+            display: none !important; 
+        }
+        
+        #app:not([v-cloak]) {
+            display: flex !important;
+        }
         
         /* Drag & Drop */
         .drag-handle {
@@ -907,6 +916,11 @@
                 onMounted(() => {
                     const loadingScreen = document.getElementById('loading');
                     if(loadingScreen) loadingScreen.style.display = 'none';
+                    
+                    // 移除v-cloak，确保app显示
+                    const appEl = document.getElementById('app');
+                    if(appEl) appEl.removeAttribute('v-cloak');
+                    
                     view.value = 'auth';
                     
                     // 检测第三方存储是否被阻止
@@ -1915,6 +1929,15 @@
             }
         }).mount('#app');
 
+            // 在Vue挂载后，移除v-cloak并显示app
+            nextTick(() => {
+                const appEl = document.getElementById('app');
+                if(appEl) {
+                    appEl.removeAttribute('v-cloak');
+                    appEl.style.display = 'flex';
+                }
+            });
+
             // 隐藏加载指示器
             const loadingEl = document.getElementById('loading');
             if (loadingEl) loadingEl.style.display = 'none';
@@ -1930,6 +1953,10 @@
     </script>
 </body>
 </html>
+
+
+
+
 
 
 
