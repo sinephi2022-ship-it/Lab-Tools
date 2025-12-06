@@ -781,7 +781,7 @@
                 const user = ref(null);
                 const tempUser = ref(null);
                 const lang = ref('en');
-                const t = (k) => window.DICT[lang.value][k] || k;
+                const t = computed(() => (k) => window.DICT[lang.value]?.[k] || k);
                 const authMode = ref('login');
                 const form = ref({name:'',email:'',password:''});
                 
