@@ -40,8 +40,8 @@ body {
     position: fixed;
     inset: 0;
     background: rgba(255, 255, 255, 0.1);
-    backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
+    backdrop-filter: blur(16px);
     z-index: 9999;
     display: flex;
     align-items: center;
@@ -81,6 +81,7 @@ body {
 /* 实验室元素 */
 .lab-item {
     position: absolute;
+    -webkit-user-select: none;
     user-select: none;
     cursor: grab;
     touch-action: none;
