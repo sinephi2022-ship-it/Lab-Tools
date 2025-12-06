@@ -167,7 +167,31 @@ window.DICT = {
         nickname: "昵称",
         avatar: "头像",
         changeAvatar: "更改头像",
-        selectShareTarget: "选择分享目标"
+        selectShareTarget: "选择分享目标",
+        
+        // New lobby features
+        join: "加入",
+        joinLab: "加入实验室",
+        inviteCode: "邀请码",
+        copyCode: "复制邀请码",
+        labNeedsPassword: "此实验室需要密码",
+        password: "密码",
+        download: "下载",
+        saveToCollection: "保存到收藏",
+        noPublicLabs: "暂无公开实验室",
+        noFavorites: "暂无收藏",
+        noFriends: "还没有好友",
+        message: "消息",
+        preview: "预览",
+        invalidCode: "邀请码无效",
+        codeNotFound: "邀请码不存在",
+        passwordRequired: "需要输入密码",
+        incorrectPassword: "密码不正确",
+        joinedSuccessfully: "加入成功",
+        copied: "已复制到剪贴板",
+        downloaded: "已下载",
+        addedToCollection: "已添加到收藏",
+        sharedToChat: "已分享到聊天"
     },
     
     en: {
@@ -265,7 +289,31 @@ window.DICT = {
         nickname: "Nickname",
         avatar: "Avatar",
         changeAvatar: "Change Avatar",
-        selectShareTarget: "Select Share Target"
+        selectShareTarget: "Select Share Target",
+        
+        // New lobby features
+        join: "Join",
+        joinLab: "Join Lab",
+        inviteCode: "Invite Code",
+        copyCode: "Copy Invite Code",
+        labNeedsPassword: "This lab requires a password",
+        password: "Password",
+        download: "Download",
+        saveToCollection: "Save to Collection",
+        noPublicLabs: "No public labs available",
+        noFavorites: "No favorites yet",
+        noFriends: "No friends yet",
+        message: "Message",
+        preview: "Preview",
+        invalidCode: "Invalid invite code",
+        codeNotFound: "Invite code not found",
+        passwordRequired: "Password required",
+        incorrectPassword: "Incorrect password",
+        joinedSuccessfully: "Joined successfully",
+        copied: "Copied to clipboard",
+        downloaded: "Downloaded",
+        addedToCollection: "Added to collection",
+        sharedToChat: "Shared to chat"
     },
     
     ja: {
@@ -363,7 +411,31 @@ window.DICT = {
         nickname: "ニックネーム",
         avatar: "アバター",
         changeAvatar: "アバター変更",
-        selectShareTarget: "共有先を選択"
+        selectShareTarget: "共有先を選択",
+        
+        // New lobby features
+        join: "参加",
+        joinLab: "ラボに参加",
+        inviteCode: "招待コード",
+        copyCode: "招待コードをコピー",
+        labNeedsPassword: "このラボはパスワードが必要です",
+        password: "パスワード",
+        download: "ダウンロード",
+        saveToCollection: "コレクションに保存",
+        noPublicLabs: "公開ラボがありません",
+        noFavorites: "お気に入りがありません",
+        noFriends: "友達がいません",
+        message: "メッセージ",
+        preview: "プレビュー",
+        invalidCode: "無効な招待コード",
+        codeNotFound: "招待コードが見つかりません",
+        passwordRequired: "パスワードが必要です",
+        incorrectPassword: "パスワードが間違っています",
+        joinedSuccessfully: "参加しました",
+        copied: "クリップボードにコピーしました",
+        downloaded: "ダウンロードしました",
+        addedToCollection: "コレクションに追加しました",
+        sharedToChat: "チャットで共有しました"
     }
 };
 

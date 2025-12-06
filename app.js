@@ -93,57 +93,155 @@
                 </div>
                 
                 <!-- Lobby -->
-                <div v-else-if="view === 'lobby'" class="flex-1 overflow-auto bg-gray-50 p-6">
-                    <div class="max-w-6xl mx-auto">
+                <div v-else-if="view === 'lobby'" class="flex-1 overflow-auto bg-gray-50">
+                    <div class="max-w-6xl mx-auto px-6 py-6">
+                        <!-- Lobby Tabs -->
+                        <div class="flex gap-2 bg-white rounded-lg p-2 mb-6 shadow-sm">
+                            <button @click="lobbyTab = 'myLabs'" class="flex-1 px-4 py-2 rounded font-bold transition" :class="{ 'bg-blue-600 text-white': lobbyTab === 'myLabs', 'text-gray-600 hover:bg-gray-100': lobbyTab !== 'myLabs' }">
+                                <i class="fa-solid fa-flask"></i> {{ t('myLabs') }}
+                            </button>
+                            <button @click="lobbyTab = 'publicLabs'" class="flex-1 px-4 py-2 rounded font-bold transition" :class="{ 'bg-blue-600 text-white': lobbyTab === 'publicLabs', 'text-gray-600 hover:bg-gray-100': lobbyTab !== 'publicLabs' }">
+                                <i class="fa-solid fa-globe"></i> {{ t('publicLabs') }}
+                            </button>
+                            <button @click="lobbyTab = 'favorites'" class="flex-1 px-4 py-2 rounded font-bold transition" :class="{ 'bg-blue-600 text-white': lobbyTab === 'favorites', 'text-gray-600 hover:bg-gray-100': lobbyTab !== 'favorites' }">
+                                <i class="fa-solid fa-star"></i> {{ t('favorites') }}
+                            </button>
+                            <button @click="lobbyTab = 'friends'" class="flex-1 px-4 py-2 rounded font-bold transition" :class="{ 'bg-blue-600 text-white': lobbyTab === 'friends', 'text-gray-600 hover:bg-gray-100': lobbyTab !== 'friends' }">
+                                <i class="fa-solid fa-users"></i> {{ t('friends') }}
+                            </button>
+                        </div>
+                        
+                        <!-- Header -->
                         <div class="flex items-center justify-between mb-6">
-                            <div class="flex gap-4 items-center">
-                                <h2 class="text-2xl font-bold">{{ lobbyTab === 'all' ? t('myLabs') : t('collection') }}</h2>
-                                <div class="flex gap-2 bg-white rounded-lg p-1">
-                                    <button @click="lobbyTab = 'all'" class="px-4 py-1 rounded font-bold transition" :class="{ 'bg-blue-600 text-white': lobbyTab === 'all', 'text-gray-600 hover:bg-gray-100': lobbyTab !== 'all' }">
-                                        {{ t('myLabs') }}
-                                    </button>
-                                    <button @click="lobbyTab = 'favorites'" class="px-4 py-1 rounded font-bold transition" :class="{ 'bg-blue-600 text-white': lobbyTab === 'favorites', 'text-gray-600 hover:bg-gray-100': lobbyTab !== 'favorites' }">
-                                        <i class="fa-solid fa-star"></i> {{ t('favorites') }}
-                                    </button>
-                                </div>
-                            </div>
+                            <h2 class="text-2xl font-bold">
+                                <i v-if="lobbyTab === 'myLabs'" class="fa-solid fa-flask mr-2"></i>
+                                <i v-if="lobbyTab === 'publicLabs'" class="fa-solid fa-globe mr-2"></i>
+                                <i v-if="lobbyTab === 'favorites'" class="fa-solid fa-star mr-2"></i>
+                                <i v-if="lobbyTab === 'friends'" class="fa-solid fa-users mr-2"></i>
+                                {{ lobbyTab === 'myLabs' ? t('myLabs') : lobbyTab === 'publicLabs' ? t('publicLabs') : lobbyTab === 'favorites' ? t('favorites') : t('friends') }}
+                            </h2>
                             <div class="flex gap-3">
                                 <button @click="loadLabs(user.uid)" class="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition">
                                     <i class="fa-solid fa-refresh"></i> {{ t('refresh') }}
                                 </button>
-                                <button @click="showCreateLabModal = true" class="bg-blue-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-blue-700 transition">
+                                <button v-if="lobbyTab === 'myLabs'" @click="showCreateLabModal = true" class="bg-blue-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-blue-700 transition">
                                     <i class="fa-solid fa-plus"></i> {{ t('createLab') }}
+                                </button>
+                                <button v-if="lobbyTab === 'publicLabs'" @click="showJoinLabModal = true" class="bg-green-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-green-700 transition">
+                                    <i class="fa-solid fa-right-to-bracket"></i> {{ t('joinLab') }}
                                 </button>
                             </div>
                         </div>
                         
-                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            <div v-for="lab in displayLabs" :key="lab.id" class="bg-white rounded-lg shadow p-4 cursor-pointer hover:shadow-lg transition">
-                                <div class="flex items-start justify-between mb-3">
-                                    <div class="flex-1" @click="enterLab(lab.id)">
-                                        <h3 class="font-bold text-lg">{{ lab.title }}</h3>
-                                        <p class="text-sm text-gray-600">{{ lab.ownerName }}</p>
+                        <!-- My Labs Tab -->
+                        <div v-if="lobbyTab === 'myLabs'" class="space-y-4">
+                            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                <div v-for="lab in displayLabs" :key="lab.id" class="bg-white rounded-lg shadow p-4 cursor-pointer hover:shadow-lg transition">
+                                    <div class="flex items-start justify-between mb-3">
+                                        <div class="flex-1" @click="enterLab(lab.id)">
+                                            <h3 class="font-bold text-lg">{{ lab.title }}</h3>
+                                            <p class="text-sm text-gray-600">{{ lab.ownerName }}</p>
+                                        </div>
+                                        <div class="flex gap-2">
+                                            <button @click.stop="toggleFavorite(lab.id)" class="transition" :class="{ 'text-yellow-500': collection?.isFavorite(lab.id), 'text-gray-400': !collection?.isFavorite(lab.id) }">
+                                                <i class="fa-solid fa-star"></i>
+                                            </button>
+                                            <button v-if="lab.ownerId === user.uid" @click.stop="deleteLab(lab.id)" class="text-red-500 hover:text-red-700">
+                                                <i class="fa-solid fa-trash"></i>
+                                            </button>
+                                        </div>
                                     </div>
-                                    <div class="flex gap-2">
-                                        <button @click.stop="toggleFavorite(lab.id)" class="transition" :class="{ 'text-yellow-500': collection?.isFavorite(lab.id), 'text-gray-400': !collection?.isFavorite(lab.id) }">
-                                            <i class="fa-solid fa-star"></i>
-                                        </button>
-                                        <button v-if="lab.ownerId === user.uid" @click.stop="deleteLab(lab.id)" class="text-red-500 hover:text-red-700">
-                                            <i class="fa-solid fa-trash"></i>
-                                        </button>
+                                    <div class="flex gap-2 mb-3">
+                                        <span v-if="lab.isPublic" class="text-xs bg-green-100 text-green-700 px-2 py-1 rounded">{{ t('isPublic') }}</span>
+                                        <span v-else class="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded">{{ t('isPrivate') }}</span>
+                                        <span v-if="lab.password" class="text-xs bg-yellow-100 text-yellow-700 px-2 py-1 rounded"><i class="fa-solid fa-lock"></i></span>
+                                        <span class="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">{{ lab.members?.length || 1 }} {{ t('members') }}</span>
                                     </div>
+                                    <div class="text-xs text-gray-500">{{ formatDate(lab.createdAt) }}</div>
+                                    <button v-if="lab.code" @click.stop="copyCode(lab.code)" class="mt-2 w-full text-xs bg-blue-50 text-blue-600 py-1 rounded hover:bg-blue-100 transition">
+                                        📋 {{ t('copyCode') }}: {{ lab.code }}
+                                    </button>
                                 </div>
-                                <div class="flex gap-2 mb-3">
-                                    <span v-if="lab.isPublic" class="text-xs bg-green-100 text-green-700 px-2 py-1 rounded">{{ t('isPublic') }}</span>
-                                    <span v-else class="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded">{{ t('isPrivate') }}</span>
-                                    <span class="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">{{ lab.members?.length || 1 }} {{ t('members') }}</span>
-                                </div>
-                                <p class="text-xs text-gray-500">{{ formatDate(lab.createdAt) }}</p>
+                            </div>
+                            <div v-if="displayLabs.length === 0" class="text-center py-12 bg-white rounded-lg">
+                                <p class="text-gray-500 text-lg">{{ t('noLabs') }}</p>
                             </div>
                         </div>
                         
-                        <div v-if="displayLabs.length === 0" class="text-center py-12">
-                            <p class="text-gray-500 text-lg">{{ t('noLabs') }}</p>
+                        <!-- Public Labs Tab -->
+                        <div v-if="lobbyTab === 'publicLabs'" class="space-y-4">
+                            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                <div v-for="lab in publicLabs" :key="lab.id" class="bg-white rounded-lg shadow p-4 cursor-pointer hover:shadow-lg transition">
+                                    <div class="flex items-start justify-between mb-3">
+                                        <div class="flex-1" @click="enterLab(lab.id)">
+                                            <h3 class="font-bold text-lg">{{ lab.title }}</h3>
+                                            <p class="text-sm text-gray-600">{{ lab.ownerName }}</p>
+                                        </div>
+                                        <button @click.stop="toggleFavorite(lab.id)" class="transition" :class="{ 'text-yellow-500': collection?.isFavorite(lab.id), 'text-gray-400': !collection?.isFavorite(lab.id) }">
+                                            <i class="fa-solid fa-star"></i>
+                                        </button>
+                                    </div>
+                                    <div class="flex gap-2 mb-3">
+                                        <span class="text-xs bg-green-100 text-green-700 px-2 py-1 rounded">{{ t('isPublic') }}</span>
+                                        <span v-if="lab.password" class="text-xs bg-yellow-100 text-yellow-700 px-2 py-1 rounded"><i class="fa-solid fa-lock"></i></span>
+                                        <span class="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">{{ lab.members?.length || 1 }} {{ t('members') }}</span>
+                                    </div>
+                                    <div class="text-xs text-gray-500 mb-3">{{ formatDate(lab.createdAt) }}</div>
+                                    <button @click.stop="joinLabWithCode(lab.code)" class="w-full bg-green-600 text-white py-2 rounded hover:bg-green-700 transition text-sm font-bold">
+                                        {{ t('join') }}
+                                    </button>
+                                </div>
+                            </div>
+                            <div v-if="publicLabs.length === 0" class="text-center py-12 bg-white rounded-lg">
+                                <p class="text-gray-500 text-lg">{{ t('noPublicLabs') }}</p>
+                            </div>
+                        </div>
+                        
+                        <!-- Favorites Tab -->
+                        <div v-if="lobbyTab === 'favorites'" class="space-y-4">
+                            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                <div v-for="lab in favoriteLabs" :key="lab.id" class="bg-white rounded-lg shadow p-4 cursor-pointer hover:shadow-lg transition">
+                                    <div class="flex items-start justify-between mb-3">
+                                        <div class="flex-1" @click="enterLab(lab.id)">
+                                            <h3 class="font-bold text-lg">{{ lab.title }}</h3>
+                                            <p class="text-sm text-gray-600">{{ lab.ownerName }}</p>
+                                        </div>
+                                        <button @click.stop="toggleFavorite(lab.id)" class="text-yellow-500">
+                                            <i class="fa-solid fa-star"></i>
+                                        </button>
+                                    </div>
+                                    <div class="flex gap-2 mb-3">
+                                        <span v-if="lab.isPublic" class="text-xs bg-green-100 text-green-700 px-2 py-1 rounded">{{ t('isPublic') }}</span>
+                                        <span v-else class="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded">{{ t('isPrivate') }}</span>
+                                        <span class="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">{{ lab.members?.length || 1 }} {{ t('members') }}</span>
+                                    </div>
+                                    <p class="text-xs text-gray-500">{{ formatDate(lab.createdAt) }}</p>
+                                </div>
+                            </div>
+                            <div v-if="favoriteLabs.length === 0" class="text-center py-12 bg-white rounded-lg">
+                                <p class="text-gray-500 text-lg">{{ t('noFavorites') }}</p>
+                            </div>
+                        </div>
+                        
+                        <!-- Friends Tab -->
+                        <div v-if="lobbyTab === 'friends'" class="space-y-4">
+                            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                <div v-for="friend in friends" :key="friend.uid" class="bg-white rounded-lg shadow p-4">
+                                    <div class="flex items-center gap-3 mb-3">
+                                        <img :src="friend.avatar" :alt="friend.name" class="w-12 h-12 rounded-full">
+                                        <div class="flex-1">
+                                            <h3 class="font-bold">{{ friend.name }}</h3>
+                                            <p class="text-xs text-gray-500">{{ friend.email }}</p>
+                                        </div>
+                                    </div>
+                                    <button @click="openPrivateChat(friend.uid)" class="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 transition text-sm font-bold">
+                                        <i class="fa-solid fa-message"></i> {{ t('message') }}
+                                    </button>
+                                </div>
+                            </div>
+                            <div v-if="friends.length === 0" class="text-center py-12 bg-white rounded-lg">
+                                <p class="text-gray-500 text-lg">{{ t('noFriends') }}</p>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -194,6 +292,80 @@
                                 </button>
                             </div>
                         </form>
+                    </div>
+                </div>
+                
+                <!-- Join Lab Modal -->
+                <div v-if="showJoinLabModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                    <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
+                        <h3 class="text-2xl font-bold mb-4">{{ t('joinLab') }}</h3>
+                        <form @submit.prevent="joinLabByCode" class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-semibold mb-2">{{ t('inviteCode') }}</label>
+                                <input v-model="joinLabCode" type="text" maxlength="6" placeholder="XXXXXX" required
+                                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-blue-500 outline-none text-center text-lg font-mono tracking-widest">
+                            </div>
+                            
+                            <div v-if="joinLabPassword" class="space-y-2">
+                                <label class="block text-sm font-semibold">{{ t('password') }}</label>
+                                <input v-model="joinLabPasswordInput" type="password"
+                                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-blue-500 outline-none">
+                                <p class="text-xs text-gray-500">{{ t('labNeedsPassword') }}</p>
+                            </div>
+                            
+                            <div class="flex gap-3 pt-4">
+                                <button type="submit" class="flex-1 bg-blue-600 text-white py-2 rounded-lg font-bold hover:bg-blue-700 transition">
+                                    {{ t('join') }}
+                                </button>
+                                <button @click="showJoinLabModal = false" type="button" class="flex-1 bg-gray-300 text-gray-700 py-2 rounded-lg font-bold hover:bg-gray-400 transition">
+                                    {{ t('cancel') }}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+                
+                <!-- Preview Modal -->
+                <div v-if="showPreviewModal && previewContent" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                    <div class="bg-white rounded-lg shadow-xl max-w-2xl max-h-[90vh] overflow-auto w-full mx-4">
+                        <div class="sticky top-0 bg-white border-b px-6 py-4 flex items-center justify-between">
+                            <h3 class="text-xl font-bold">{{ previewContent.title || t('preview') }}</h3>
+                            <button @click="showPreviewModal = false" class="text-gray-500 hover:text-gray-700 text-2xl">&times;</button>
+                        </div>
+                        
+                        <div class="p-6">
+                            <!-- Image Preview -->
+                            <img v-if="previewContent.type === 'image'" :src="previewContent.content" :alt="previewContent.title" class="max-w-full rounded-lg">
+                            
+                            <!-- File Preview -->
+                            <iframe v-if="previewContent.type === 'pdf'" :src="previewContent.content" class="w-full h-[600px] rounded-lg"></iframe>
+                            
+                            <!-- Protocol Preview -->
+                            <div v-if="previewContent.type === 'protocol'" class="space-y-2">
+                                <div v-for="(step, idx) in previewContent.steps" :key="idx" class="flex gap-3 items-start">
+                                    <input type="checkbox" :checked="step.done" :disabled="true" class="mt-1">
+                                    <div>
+                                        <p class="font-semibold">{{ step.text }}</p>
+                                        <p v-if="step.note" class="text-xs text-gray-500 mt-1">📝 {{ step.note }}</p>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Text Preview -->
+                            <div v-if="previewContent.type === 'text'" class="prose" v-html="previewContent.content"></div>
+                        </div>
+                        
+                        <div class="border-t px-6 py-4 flex gap-3 justify-end">
+                            <button @click="downloadPreviewContent" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition">
+                                <i class="fa-solid fa-download"></i> {{ t('download') }}
+                            </button>
+                            <button @click="addPreviewToCollection" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition">
+                                <i class="fa-solid fa-bookmark"></i> {{ t('saveToCollection') }}
+                            </button>
+                            <button @click="sharePreviewContent" class="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700 transition">
+                                <i class="fa-solid fa-share"></i> {{ t('share') }}
+                            </button>
+                        </div>
                     </div>
                 </div>
                 
@@ -499,7 +671,22 @@
             const inviteEmail = ref('');
             const inviteRole = ref('editor');
             const collection = ref(null);
-            const lobbyTab = ref('all');
+            const lobbyTab = ref('myLabs');
+            const showJoinLabModal = ref(false);
+            const joinLabCode = ref('');
+            const joinLabPassword = ref(false);
+            const joinLabPasswordInput = ref('');
+            const publicLabs = ref([]);
+            const favoriteLabs = computed(() => {
+                if (collection.value) {
+                    return collection.value.getFavoriteLabs(labs.value);
+                }
+                return [];
+            });
+            const friends = ref([]);
+            const showPreviewModal = ref(false);
+            const previewContent = ref(null);
+            const currentPrivateChat = ref(null);
             const displayLabs = computed(() => {
                 if (lobbyTab.value === 'favorites' && collection.value) {
                     return collection.value.getFavoriteLabs(labs.value);
@@ -1077,8 +1264,23 @@
                         collection.value = new window.LabCollection(u.uid, db);
                         await collection.value.init();
                         loadLabs(u.uid);
+                        
+                        // Load public labs and friends on entering lobby
+                        if (view.value === 'lobby') {
+                            await loadPublicLabs();
+                            await loadFriends();
+                        }
                     }
                 });
+            });
+            
+            // Watch for lobby tab changes to load data
+            watch(() => lobbyTab.value, async (newTab) => {
+                if (newTab === 'publicLabs' && publicLabs.value.length === 0) {
+                    await loadPublicLabs();
+                } else if (newTab === 'friends' && friends.value.length === 0) {
+                    await loadFriends();
+                }
             });
             
             onUnmounted(() => {
@@ -1091,6 +1293,290 @@
                     chat.value = null;
                 }
             });
+            
+            // Load public labs from Firestore
+            const loadPublicLabs = async () => {
+                try {
+                    const snapshot = await db.collection('labs')
+                        .where('isPublic', '==', true)
+                        .orderBy('createdAt', 'desc')
+                        .limit(50)
+                        .get();
+                    publicLabs.value = snapshot.docs.map(doc => ({ 
+                        id: doc.id, 
+                        ...doc.data() 
+                    }));
+                } catch (error) {
+                    console.error('Error loading public labs:', error);
+                    Utils.toast('Failed to load public labs', 'error');
+                }
+            };
+            
+            // Join lab by 6-digit code
+            const joinLabByCode = async () => {
+                if (!joinLabCode.value || joinLabCode.value.trim().length !== 6) {
+                    Utils.toast(t('invalidCode'), 'error');
+                    return;
+                }
+                
+                if (!user.value) return;
+                
+                try {
+                    // Find lab by invite code
+                    const snapshot = await db.collection('labs')
+                        .where('inviteCode', '==', joinLabCode.value.toUpperCase())
+                        .limit(1)
+                        .get();
+                    
+                    if (snapshot.empty) {
+                        Utils.toast(t('codeNotFound'), 'error');
+                        return;
+                    }
+                    
+                    const lab = snapshot.docs[0];
+                    
+                    // Check if password protected
+                    if (lab.data().requiresPassword) {
+                        if (!joinLabPasswordInput.value) {
+                            Utils.toast(t('passwordRequired'), 'error');
+                            return;
+                        }
+                        // Simple validation - in production use proper encryption
+                        if (joinLabPasswordInput.value !== lab.data().password) {
+                            Utils.toast(t('incorrectPassword'), 'error');
+                            return;
+                        }
+                    }
+                    
+                    // Add user to members
+                    const members = lab.data().members || [];
+                    if (!members.includes(user.value.uid)) {
+                        members.push(user.value.uid);
+                        const memberNames = lab.data().memberNames || [];
+                        memberNames.push(user.value.displayName || user.value.email);
+                        
+                        await db.collection('labs').doc(lab.id).update({
+                            members: members,
+                            memberNames: memberNames,
+                            updatedAt: new Date()
+                        });
+                    }
+                    
+                    // Reset form and close modal
+                    joinLabCode.value = '';
+                    joinLabPasswordInput.value = '';
+                    showJoinLabModal.value = false;
+                    
+                    // Reload labs
+                    await loadLabs(user.value.uid);
+                    Utils.toast(t('joinedSuccessfully'), 'success');
+                } catch (error) {
+                    console.error('Error joining lab:', error);
+                    Utils.toast('Failed to join lab', 'error');
+                }
+            };
+            
+            // Load user's friends list
+            const loadFriends = async () => {
+                if (!user.value) return;
+                
+                try {
+                    const userDoc = await db.collection('users').doc(user.value.uid).get();
+                    const friendIds = userDoc.data()?.friends || [];
+                    
+                    // Fetch friend documents
+                    const friendsData = [];
+                    for (const friendId of friendIds) {
+                        const friendDoc = await db.collection('users').doc(friendId).get();
+                        if (friendDoc.exists) {
+                            friendsData.push({
+                                id: friendId,
+                                displayName: friendDoc.data().displayName || 'Unknown',
+                                avatar: friendDoc.data().avatar || 'avatar1',
+                                email: friendDoc.data().email || ''
+                            });
+                        }
+                    }
+                    friends.value = friendsData;
+                } catch (error) {
+                    console.error('Error loading friends:', error);
+                }
+            };
+            
+            // Open private chat with friend
+            const openPrivateChat = async (friendUid, friendName) => {
+                if (!user.value) return;
+                
+                try {
+                    // Create or open private chat
+                    const chatId = [user.value.uid, friendUid].sort().join('_');
+                    currentPrivateChat.value = {
+                        id: chatId,
+                        friendUid: friendUid,
+                        friendName: friendName
+                    };
+                    view.value = 'privateChat';
+                    
+                    // Load private messages (implement in chat module)
+                    if (chat.value && chat.value.loadPrivateMessages) {
+                        await chat.value.loadPrivateMessages(chatId);
+                    }
+                } catch (error) {
+                    console.error('Error opening private chat:', error);
+                    Utils.toast('Failed to open chat', 'error');
+                }
+            };
+            
+            // Copy code to clipboard
+            const copyCode = async (code) => {
+                try {
+                    await navigator.clipboard.writeText(code);
+                    Utils.toast(t('copied'), 'success');
+                } catch (error) {
+                    console.error('Error copying code:', error);
+                    Utils.toast('Failed to copy code', 'error');
+                }
+            };
+            
+            // Show preview modal
+            const showPreview = (content) => {
+                previewContent.value = content;
+                showPreviewModal.value = true;
+            };
+            
+            // Download preview content
+            const downloadPreviewContent = () => {
+                if (!previewContent.value) return;
+                
+                try {
+                    const { type, data, name } = previewContent.value;
+                    
+                    if (type === 'image') {
+                        // Download image
+                        const link = document.createElement('a');
+                        link.href = data;
+                        link.download = name || 'image.png';
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                    } else if (type === 'file') {
+                        // Download file
+                        const link = document.createElement('a');
+                        link.href = data;
+                        link.download = name || 'file.pdf';
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                    } else if (type === 'protocol') {
+                        // Export protocol as text
+                        const text = data;
+                        const blob = new Blob([text], { type: 'text/plain' });
+                        const url = URL.createObjectURL(blob);
+                        const link = document.createElement('a');
+                        link.href = url;
+                        link.download = name || 'protocol.txt';
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                        URL.revokeObjectURL(url);
+                    }
+                    Utils.toast(t('downloaded'), 'success');
+                } catch (error) {
+                    console.error('Download error:', error);
+                    Utils.toast('Failed to download', 'error');
+                }
+            };
+            
+            // Add preview content to collection
+            const addPreviewToCollection = async () => {
+                if (!previewContent.value || !collection.value) return;
+                
+                try {
+                    // Create lab entry in collection
+                    const item = {
+                        id: window.Utils.generateId(),
+                        title: previewContent.value.name,
+                        type: previewContent.value.type,
+                        data: previewContent.value.data,
+                        addedAt: new Date()
+                    };
+                    
+                    await collection.value.addToFavorites(item.id);
+                    Utils.toast(t('addedToCollection'), 'success');
+                    showPreviewModal.value = false;
+                } catch (error) {
+                    console.error('Error adding to collection:', error);
+                    Utils.toast('Failed to add to collection', 'error');
+                }
+            };
+            
+            // Share preview content to chat
+            const sharePreviewContent = async () => {
+                if (!previewContent.value || !currentLab.value) return;
+                
+                try {
+                    // Share to lab chat
+                    const message = {
+                        id: window.Utils.generateId(),
+                        userId: user.value.uid,
+                        userName: user.value.displayName || user.value.email,
+                        content: previewContent.value.name,
+                        type: previewContent.value.type,
+                        fileUrl: previewContent.value.data,
+                        timestamp: new Date(),
+                        reactions: {}
+                    };
+                    
+                    await db.collection('labs').doc(currentLab.value.id)
+                        .collection('messages').add(message);
+                    
+                    Utils.toast(t('sharedToChat'), 'success');
+                    showPreviewModal.value = false;
+                } catch (error) {
+                    console.error('Error sharing to chat:', error);
+                    Utils.toast('Failed to share to chat', 'error');
+                }
+            };
+            
+            // Join lab directly from public list
+            const joinLabWithCode = async (labId) => {
+                if (!user.value) return;
+                
+                try {
+                    const labDoc = await db.collection('labs').doc(labId).get();
+                    if (!labDoc.exists) {
+                        Utils.toast('Lab not found', 'error');
+                        return;
+                    }
+                    
+                    const lab = labDoc.data();
+                    
+                    // Check if already a member
+                    if (lab.members && lab.members.includes(user.value.uid)) {
+                        Utils.toast('Already a member', 'info');
+                        return;
+                    }
+                    
+                    // Add to members
+                    const members = lab.members || [];
+                    members.push(user.value.uid);
+                    const memberNames = lab.memberNames || [];
+                    memberNames.push(user.value.displayName || user.value.email);
+                    
+                    await db.collection('labs').doc(labId).update({
+                        members: members,
+                        memberNames: memberNames,
+                        updatedAt: new Date()
+                    });
+                    
+                    // Reload labs
+                    await loadLabs(user.value.uid);
+                    Utils.toast(t('joinedSuccessfully'), 'success');
+                } catch (error) {
+                    console.error('Error joining lab:', error);
+                    Utils.toast('Failed to join lab', 'error');
+                }
+            };
             
             return {
                 user,
@@ -1148,6 +1634,10 @@
                 lobbyTab,
                 displayLabs,
                 toggleFavorite,
+                friends,
+                showPreviewModal,
+                previewContent,
+                currentPrivateChat,
                 activeReactionPickerId,
                 fileInput,
                 groupReactions,
@@ -1155,7 +1645,17 @@
                 addReactionToMessage,
                 toggleReaction,
                 uploadChatFile,
-                handleFileUpload
+                handleFileUpload,
+                loadPublicLabs,
+                joinLabByCode,
+                loadFriends,
+                openPrivateChat,
+                copyCode,
+                showPreview,
+                downloadPreviewContent,
+                addPreviewToCollection,
+                sharePreviewContent,
+                joinLabWithCode
             };
         }
     });
