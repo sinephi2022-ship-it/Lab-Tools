@@ -176,8 +176,15 @@ createApp({
                     displayName: authForm.displayName || authForm.email.split('@')[0],
                     avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${result.user.uid}`,
                     createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    joinedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    friends: [],
+                    favorites: [],
+                    currentLab: '',
+                    lastSeen: Date.now(),
                     lang: currentLang.value
                 });
+                
+                console.log('✅ 注册成功并已创建用户资料:', result.user.email);
                 
                 console.log('✅ 注册成功:', result.user.email);
                 showAuthModal.value = false;
@@ -799,25 +806,10 @@ createApp({
                             currentLang.value = userProfile.value.lang;
                         }
                     } else {
-                        console.warn('⚠️ 用户资料不存在，正在自动创建...');
-                        
-                        // 自动创建用户资料
-                        const newUserProfile = {
-                            email: firebaseUser.email,
-                            displayName: firebaseUser.displayName || firebaseUser.email.split('@')[0],
-                            avatar: firebaseUser.photoURL || 'https://api.dicebear.com/7.x/avataaars/svg?seed=' + firebaseUser.uid,
-                            lang: currentLang.value,
-                            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-                            joinedAt: firebase.firestore.FieldValue.serverTimestamp(),
-                            friends: [],
-                            favorites: [],
-                            currentLab: '',
-                            lastSeen: Date.now()
-                        };
-                        
-                        await db.collection('users').doc(firebaseUser.uid).set(newUserProfile);
-                        userProfile.value = newUserProfile;
-                        console.log('✅ 用户资料已自动创建');
+                        console.warn('⚠️ 提示: 请先注册账户创建用户资料');
+                        user.value = null;
+                        showAuthModal.value = true;
+                        return;
                     }
                     
                     // 加载实验室
