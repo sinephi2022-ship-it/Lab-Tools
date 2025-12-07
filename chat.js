@@ -323,14 +323,12 @@ class LabChat {
     subscribeToPrivateChat(chatId, callback) {
         return this.db.collection('privateMessages')
             .where('chatId', '==', chatId)
-            .orderBy('createdAt', 'desc')
+            .orderBy('createdAt', 'asc')
             .onSnapshot(snapshot => {
-                const messages = snapshot.docs
-                    .reverse()
-                    .map(doc => ({
-                        id: doc.id,
-                        ...doc.data()
-                    }));
+                const messages = snapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                }));
                 
                 this.privateMessages = messages;
                 callback?.(messages);

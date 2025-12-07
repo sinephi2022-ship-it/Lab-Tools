@@ -581,7 +581,10 @@ class LabCanvas {
      * Copy selected elements
      */
     copySelected() {
-        if (this.selectedElements.size === 0) return;
+        if (this.selectedElements.size === 0) {
+            console.warn('No elements selected to copy');
+            return;
+        }
         
         const selected = [];
         for (const id of this.selectedElements) {
@@ -589,6 +592,11 @@ class LabCanvas {
             if (el) {
                 selected.push(JSON.parse(JSON.stringify(el)));
             }
+        }
+        
+        if (selected.length === 0) {
+            console.warn('Selected elements could not be copied');
+            return;
         }
         
         this.clipboard = {
@@ -601,7 +609,10 @@ class LabCanvas {
      * Paste from clipboard
      */
     pasteClipboard() {
-        if (!this.clipboard || !this.clipboard.elements) return;
+        if (!this.clipboard || !this.clipboard.elements || this.clipboard.elements.length === 0) {
+            console.warn('Nothing to paste');
+            return;
+        }
         
         this.saveState();
         
@@ -610,11 +621,13 @@ class LabCanvas {
         const offsetY = 20;
         
         for (const el of this.clipboard.elements) {
+            if (!el || !el.id) continue;  // Skip invalid elements
+            
             const newEl = {
                 ...JSON.parse(JSON.stringify(el)),
                 id: `elem_${Date.now()}_${Math.random()}`,
-                x: el.x + offsetX,
-                y: el.y + offsetY
+                x: (el.x || 0) + offsetX,
+                y: (el.y || 0) + offsetY
             };
             
             this.elements.push(newEl);

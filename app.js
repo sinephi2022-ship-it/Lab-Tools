@@ -1277,6 +1277,7 @@
                         await loadFriendRequests();
                         
                         // Monitor friend requests in real-time
+                        let lastFriendRequestCount = 0;
                         db.collection('friendRequests')
                             .where('toUid', '==', u.uid)
                             .where('status', '==', 'pending')
@@ -1286,19 +1287,22 @@
                                     ...doc.data()
                                 }));
                                 
-                                // Show notification for new requests
-                                if (friendRequests.value.length > 0) {
+                                // Show notification only for NEW requests
+                                if (friendRequests.value.length > lastFriendRequestCount) {
+                                    const newCount = friendRequests.value.length - lastFriendRequestCount;
                                     notifications.value.push({
-                                        id: Date.now(),
+                                        id: `friendReq_${Date.now()}`,
                                         type: 'friendRequest',
-                                        message: `You have ${friendRequests.value.length} friend request(s)`,
+                                        message: `You have ${newCount} new friend request(s)`,
                                         createdAt: new Date(),
                                         read: false
                                     });
+                                    lastFriendRequestCount = friendRequests.value.length;
                                 }
                             });
                         
                         // Monitor invitations (if user is invited to a lab)
+                        let lastInvitationCount = 0;
                         db.collection('labInvitations')
                             .where('invitedEmail', '==', u.email)
                             .where('status', '==', 'pending')
@@ -1308,20 +1312,25 @@
                                     ...doc.data()
                                 }));
                                 
-                                // Show notification for new invitations
-                                if (invitations.length > 0) {
-                                    invitations.forEach(inv => {
-                                        notifications.value.push({
-                                            id: `inv_${inv.id}`,
-                                            type: 'labInvitation',
-                                            message: `You've been invited to "${inv.labName}" lab`,
-                                            labId: inv.labId,
-                                            invitationId: inv.id,
-                                            createdAt: new Date(),
-                                            read: false
-                                        });
+                                // Show notification only for NEW invitations
+                                if (invitations.length > lastInvitationCount) {
+                                    invitations.slice(lastInvitationCount).forEach(inv => {
+                                        if (inv && inv.labName) {
+                                            notifications.value.push({
+                                                id: `inv_${inv.id}`,
+                                                type: 'labInvitation',
+                                                message: `You've been invited to "${inv.labName}" lab`,
+                                                labId: inv.labId,
+                                                invitationId: inv.id,
+                                                createdAt: new Date(),
+                                                read: false
+                                            });
+                                        }
                                     });
+                                    lastInvitationCount = invitations.length;
                                 }
+                            }, error => {
+                                console.warn('Lab invitations collection may not exist:', error);
                             });
                     }
                 });
@@ -1498,14 +1507,17 @@
                         .where('email', '==', searchTerm.toLowerCase())
                         .get();
                     
+                    const currentUserFriends = user.value?.friends || [];
+                    
                     return snapshot.docs
                         .map(doc => ({
                             uid: doc.id,
                             ...doc.data()
                         }))
-                        .filter(u => u.uid !== user.value.uid);
+                        .filter(u => u.uid !== user.value.uid && !currentUserFriends.includes(u.uid));
                 } catch (error) {
                     console.error('Search error:', error);
+                    Utils.toast('Search failed', 'error');
                     return [];
                 }
             };
