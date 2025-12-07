@@ -784,23 +784,38 @@ createApp({
         onMounted(() => {
             // 监听认证状态
             firebase.auth().onAuthStateChanged(async (firebaseUser) => {
+                console.log('🔍 认证状态改变:', firebaseUser?.email);
+                
                 if (firebaseUser) {
                     user.value = firebaseUser;
+                    console.log('✅ 用户已登录:', firebaseUser.email);
                     
                     // 加载用户资料
                     const userDoc = await db.collection('users').doc(firebaseUser.uid).get();
                     if (userDoc.exists) {
                         userProfile.value = userDoc.data();
+                        console.log('✅ 用户资料已加载');
                         if (userProfile.value.lang) {
                             currentLang.value = userProfile.value.lang;
                         }
+                    } else {
+                        console.warn('⚠️ 用户资料不存在');
                     }
                     
                     // 加载实验室
+                    console.log('📚 开始加载实验室...');
                     await loadMyLabs();
+                    console.log('✅ 我的实验室加载完成');
+                    
                     await loadPublicLabs();
+                    console.log('✅ 公开实验室加载完成');
+                    
                     await loadFavoriteLabs();
+                    console.log('✅ 收藏实验室加载完成');
+                    
+                    console.log('🎉 所有数据加载完成！');
                 } else {
+                    console.log('👤 用户未登录');
                     user.value = null;
                     userProfile.value = null;
                     myLabs.value = [];
