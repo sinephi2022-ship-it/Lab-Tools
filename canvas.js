@@ -42,7 +42,14 @@ class CanvasEngine {
         this.isDragging = false;            // 是否正在拖拽元素
         this.isPanning = false;             // 是否正在平移画布
         this.isSelecting = false;           // 是否正在框选
-        this.isDirty = true;                // 是否需要重绘
+        
+        // 多级脏标记系统 (性能优化)
+        this.dirtyFlags = {
+            RENDER: true,                   // 整个画布需要重绘
+            ELEMENTS: false,                // 元素列表有变化
+            UI: false,                      // UI信息有变化
+            GRID: false                     // 网格需要重新计算
+        };
         
         // 鼠标状态
         this.mouse = {
@@ -76,12 +83,28 @@ class CanvasEngine {
         this.lastRenderTime = 0;
         this.fps = 60;
         
-        // 网格设置
+        // 网格设置和缓存
         this.grid = {
             enabled: true,
             size: 20,
-            color: '#e5e7eb'
+            color: '#e5e7eb',
+            // 缓存网格计算结果
+            cached: {
+                lastZoom: -1,
+                lastViewport: null,
+                lines: []
+            }
         };
+        
+        // 命令历史 (撤销/重做)
+        this.history = new (window.CommandHistory || function() {
+            // 如果 CommandHistory 还没加载，提供一个临时的空实现
+            this.execute = () => {};
+            this.undo = () => null;
+            this.redo = () => null;
+            this.canUndo = () => false;
+            this.canRedo = () => false;
+        })();
         
         // 初始化
         this.resize();
@@ -125,7 +148,8 @@ class CanvasEngine {
     pan(dx, dy) {
         this.camera.x += dx / this.camera.zoom;
         this.camera.y += dy / this.camera.zoom;
-        this.isDirty = true;
+        this.dirtyFlags.RENDER = true;
+        this.dirtyFlags.GRID = true;
     }
     
     /**
@@ -154,7 +178,8 @@ class CanvasEngine {
         this.camera.x += worldPos.x - newWorldPos.x;
         this.camera.y += worldPos.y - newWorldPos.y;
         
-        this.isDirty = true;
+        this.dirtyFlags.RENDER = true;
+        this.dirtyFlags.GRID = true;
     }
     
     /**
@@ -164,7 +189,8 @@ class CanvasEngine {
         this.camera.x = 0;
         this.camera.y = 0;
         this.camera.zoom = 1;
-        this.isDirty = true;
+        this.dirtyFlags.RENDER = true;
+        this.dirtyFlags.GRID = true;
     }
     
     /**
@@ -204,7 +230,8 @@ class CanvasEngine {
         this.camera.x = centerX;
         this.camera.y = centerY;
         this.camera.zoom = Math.max(this.camera.minZoom, zoom);
-        this.isDirty = true;
+        this.dirtyFlags.RENDER = true;
+        this.dirtyFlags.GRID = true;
     }
     
     // ========================================
@@ -216,7 +243,8 @@ class CanvasEngine {
      */
     addElement(element) {
         this.elements.set(element.id, element);
-        this.isDirty = true;
+        this.dirtyFlags.RENDER = true;
+        this.dirtyFlags.ELEMENTS = true;
         this.emit('elementAdded', element);
         return element;
     }
@@ -227,7 +255,8 @@ class CanvasEngine {
     removeElement(id) {
         this.elements.delete(id);
         this.selectedElements.delete(id);
-        this.isDirty = true;
+        this.dirtyFlags.RENDER = true;
+        this.dirtyFlags.ELEMENTS = true;
         this.emit('elementDeleted', id);
     }
     
@@ -244,7 +273,8 @@ class CanvasEngine {
     clearElements() {
         this.elements.clear();
         this.selectedElements.clear();
-        this.isDirty = true;
+        this.dirtyFlags.RENDER = true;
+        this.dirtyFlags.ELEMENTS = true;
     }
     
     /**
@@ -392,7 +422,8 @@ class CanvasEngine {
                 this.canvas.style.cursor = 'crosshair';
             }
             
-            this.isDirty = true;
+            this.dirtyFlags.RENDER = true;
+            this.dirtyFlags.UI = true;
         }
     }
     
@@ -440,7 +471,7 @@ class CanvasEngine {
                     element.y = world.y + offset.y;
                 }
             });
-            this.isDirty = true;
+            this.dirtyFlags.RENDER = true;
             return;
         }
         
@@ -448,7 +479,7 @@ class CanvasEngine {
         if (this.isSelecting) {
             this.selectionBox.endX = world.x;
             this.selectionBox.endY = world.y;
-            this.isDirty = true;
+            this.dirtyFlags.RENDER = true;
             return;
         }
         
@@ -457,7 +488,8 @@ class CanvasEngine {
         if (hoveredElement !== this.hoveredElement) {
             this.hoveredElement = hoveredElement;
             this.canvas.style.cursor = hoveredElement ? 'pointer' : 'default';
-            this.isDirty = true;
+            this.dirtyFlags.RENDER = true;
+            this.dirtyFlags.UI = true;
         }
     }
     
@@ -471,7 +503,8 @@ class CanvasEngine {
             selectedElements.forEach(el => this.selectedElements.add(el.id));
             this.selectionBox.active = false;
             this.isSelecting = false;
-            this.isDirty = true;
+            this.dirtyFlags.RENDER = true;
+            this.dirtyFlags.UI = true;
         }
         
         // 结束拖拽
@@ -524,13 +557,15 @@ class CanvasEngine {
             e.preventDefault();
             this.selectedElements.clear();
             this.elements.forEach((el, id) => this.selectedElements.add(id));
-            this.isDirty = true;
+            this.dirtyFlags.RENDER = true;
+            this.dirtyFlags.UI = true;
         }
         
         // Escape - 取消选择
         if (e.key === 'Escape') {
             this.selectedElements.clear();
-            this.isDirty = true;
+            this.dirtyFlags.RENDER = true;
+            this.dirtyFlags.UI = true;
         }
     }
     
@@ -590,7 +625,8 @@ class CanvasEngine {
             this.velocity.x *= friction;
             this.velocity.y *= friction;
             
-            this.isDirty = true;
+            this.dirtyFlags.RENDER = true;
+            this.dirtyFlags.GRID = true;
             requestAnimationFrame(animate);
         };
         
@@ -608,10 +644,19 @@ class CanvasEngine {
      */
     startRenderLoop() {
         const render = (timestamp) => {
-            // 脏标记优化 - 只在需要时重绘
-            if (this.isDirty) {
+            // 多级脏标记优化 - 智能重绘
+            const needsRender = this.dirtyFlags.RENDER || this.dirtyFlags.ELEMENTS;
+            const needsUI = this.dirtyFlags.UI;
+            
+            if (needsRender) {
                 this.render();
-                this.isDirty = false;
+                this.dirtyFlags.RENDER = false;
+                this.dirtyFlags.ELEMENTS = false;
+                this.dirtyFlags.GRID = false;
+            } else if (needsUI) {
+                // 只更新 UI 层 (不重绘整个画布)
+                this.renderUI();
+                this.dirtyFlags.UI = false;
             }
             
             this.renderRequest = requestAnimationFrame(render);
@@ -671,7 +716,7 @@ class CanvasEngine {
     }
     
     /**
-     * 渲染网格
+     * 渲染网格 (优化版本 - 缓存计算结果)
      */
     renderGrid() {
         const gridSize = this.grid.size;
@@ -682,6 +727,26 @@ class CanvasEngine {
         const viewportTop = this.camera.y - (this.canvas.height / 2 / zoom);
         const viewportRight = this.camera.x + (this.canvas.width / 2 / zoom);
         const viewportBottom = this.camera.y + (this.canvas.height / 2 / zoom);
+        
+        // 缓存检查 - 如果zoom和视口没有显著变化，跳过重新计算
+        const viewportKey = `${Math.floor(viewportLeft)},${Math.floor(viewportTop)}`;
+        if (this.grid.cached.lastZoom === zoom && 
+            this.grid.cached.lastViewport === viewportKey &&
+            this.grid.cached.lines.length > 0) {
+            // 使用缓存的网格线
+            this.ctx.strokeStyle = this.grid.color;
+            this.ctx.lineWidth = 1 / zoom;
+            this.ctx.beginPath();
+            this.grid.cached.lines.forEach(line => {
+                this.ctx.moveTo(line.x1, line.y1);
+                this.ctx.lineTo(line.x2, line.y2);
+            });
+            this.ctx.stroke();
+            return;
+        }
+        
+        // 计算新的网格线
+        const lines = [];
         
         // 网格线起始位置
         const startX = Math.floor(viewportLeft / gridSize) * gridSize;
@@ -695,15 +760,22 @@ class CanvasEngine {
         for (let x = startX; x <= viewportRight; x += gridSize) {
             this.ctx.moveTo(x, viewportTop);
             this.ctx.lineTo(x, viewportBottom);
+            lines.push({ x1: x, y1: viewportTop, x2: x, y2: viewportBottom });
         }
         
         // 绘制水平线
         for (let y = startY; y <= viewportBottom; y += gridSize) {
             this.ctx.moveTo(viewportLeft, y);
             this.ctx.lineTo(viewportRight, y);
+            lines.push({ x1: viewportLeft, y1: y, x2: viewportRight, y2: y });
         }
         
         this.ctx.stroke();
+        
+        // 更新缓存
+        this.grid.cached.lastZoom = zoom;
+        this.grid.cached.lastViewport = viewportKey;
+        this.grid.cached.lines = lines;
     }
     
     /**
@@ -748,7 +820,7 @@ class CanvasEngine {
         const container = this.canvas.parentElement;
         this.canvas.width = container.clientWidth;
         this.canvas.height = container.clientHeight;
-        this.isDirty = true;
+        this.dirtyFlags.RENDER = true;
     }
     
     /**
@@ -769,7 +841,8 @@ class CanvasEngine {
             this.camera = { ...this.camera, ...data.camera };
         }
         // 元素由 elements.js 负责创建
-        this.isDirty = true;
+        this.dirtyFlags.RENDER = true;
+        this.dirtyFlags.ELEMENTS = true;
     }
     
     /**
@@ -816,17 +889,88 @@ class CanvasEngine {
     }
 
     /**
-     * 标记画布需要重绘
+     * 标记画布需要重绘 (支持选择性标记)
+     * @param {string} flag - 可选: 'RENDER' | 'ELEMENTS' | 'UI' | 'GRID' | 'ALL'
      */
-    markDirty() {
-        this.isDirty = true;
+    markDirty(flag = 'RENDER') {
+        if (flag === 'ALL') {
+            Object.keys(this.dirtyFlags).forEach(key => {
+                this.dirtyFlags[key] = true;
+            });
+        } else {
+            this.dirtyFlags[flag] = true;
+        }
     }
 
     /**
      * 标记画布不需要重绘
      */
     markClean() {
-        this.isDirty = false;
+        Object.keys(this.dirtyFlags).forEach(key => {
+            this.dirtyFlags[key] = false;
+        });
+    }
+
+    /**
+     * 删除所有选中的元素
+     */
+    deleteSelected() {
+        this.selectedElements.forEach(id => this.removeElement(id));
+        this.selectedElements.clear();
+    }
+
+    /**
+     * 撤销上一步操作
+     */
+    undo() {
+        const description = this.history.undo();
+        if (description) {
+            console.log(`↶ 撤销: ${description}`);
+        }
+        return description;
+    }
+
+    /**
+     * 重做下一步操作
+     */
+    redo() {
+        const description = this.history.redo();
+        if (description) {
+            console.log(`↷ 重做: ${description}`);
+        }
+        return description;
+    }
+
+    /**
+     * 全选所有元素
+     */
+    selectAll() {
+        this.elements.forEach((el, id) => this.selectedElements.add(id));
+        this.markDirty('UI');
+    }
+
+    /**
+     * 清除选择
+     */
+    clearSelection() {
+        this.selectedElements.clear();
+        this.markDirty('UI');
+    }
+
+    /**
+     * 添加连接线 (占位符 - 实际实现在 connections.js)
+     */
+    addConnection(connection) {
+        this.dirtyFlags.RENDER = true;
+        this.emit('connectionAdded', connection);
+    }
+
+    /**
+     * 删除连接线 (占位符 - 实际实现在 connections.js)
+     */
+    removeConnection(id) {
+        this.dirtyFlags.RENDER = true;
+        this.emit('connectionDeleted', id);
     }
 }
 
