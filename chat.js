@@ -16,10 +16,94 @@ class Message {
         this.senderId = senderId;
         this.receiverId = receiverId;
         this.content = content;
-        this.type = type; // 'text', 'image', 'file', 'link', 'element'
+        this.type = type; // 'text', 'image', 'file', 'link', 'element', 'code'
         this.timestamp = Date.now();
         this.read = false;
         this.metadata = {}; // 额外数据(如文件URL、图片URL等)
+        
+        // ✨ 新增: 消息反应系统
+        this.reactions = []; // [{emoji, userId, userName}, ...]
+        
+        // ✨ 新增: 消息编辑历史
+        this.edited = false;
+        this.editedAt = null;
+        this.editHistory = []; // [{oldContent, editedAt}, ...]
+        
+        // ✨ 新增: 消息引用/回复
+        this.replyTo = null; // 引用的消息 ID
+    }
+
+    /**
+     * ✨ 添加反应
+     */
+    addReaction(emoji, userId, userName) {
+        const existingReaction = this.reactions.find(r => r.emoji === emoji && r.userId === userId);
+        
+        if (existingReaction) {
+            // 移除反应
+            this.reactions = this.reactions.filter(r => !(r.emoji === emoji && r.userId === userId));
+        } else {
+            // 添加反应
+            this.reactions.push({ emoji, userId, userName, timestamp: Date.now() });
+        }
+        
+        return this.reactions;
+    }
+
+    /**
+     * ✨ 获取反应统计
+     */
+    getReactionStats() {
+        const stats = {};
+        
+        this.reactions.forEach(reaction => {
+            if (!stats[reaction.emoji]) {
+                stats[reaction.emoji] = {
+                    emoji: reaction.emoji,
+                    count: 0,
+                    users: []
+                };
+            }
+            stats[reaction.emoji].count++;
+            stats[reaction.emoji].users.push(reaction.userName);
+        });
+        
+        return Object.values(stats);
+    }
+
+    /**
+     * ✨ 编辑消息
+     */
+    edit(newContent) {
+        // 保存编辑历史
+        this.editHistory.push({
+            oldContent: this.content,
+            editedAt: this.editedAt || this.timestamp
+        });
+        
+        this.content = newContent;
+        this.edited = true;
+        this.editedAt = Date.now();
+    }
+
+    /**
+     * ✨ 撤销最后一次编辑
+     */
+    undoEdit() {
+        if (this.editHistory.length === 0) {
+            console.warn('⚠️ 没有编辑历史可以撤销');
+            return false;
+        }
+        
+        const lastEdit = this.editHistory.pop();
+        this.content = lastEdit.oldContent;
+        
+        if (this.editHistory.length === 0) {
+            this.edited = false;
+            this.editedAt = null;
+        }
+        
+        return true;
     }
 
     toJSON() {
@@ -31,7 +115,12 @@ class Message {
             type: this.type,
             timestamp: this.timestamp,
             read: this.read,
-            metadata: this.metadata
+            metadata: this.metadata,
+            reactions: this.reactions,
+            edited: this.edited,
+            editedAt: this.editedAt,
+            editHistory: this.editHistory,
+            replyTo: this.replyTo
         };
     }
 
@@ -41,6 +130,11 @@ class Message {
         msg.timestamp = data.timestamp;
         msg.read = data.read || false;
         msg.metadata = data.metadata || {};
+        msg.reactions = data.reactions || [];
+        msg.edited = data.edited || false;
+        msg.editedAt = data.editedAt || null;
+        msg.editHistory = data.editHistory || [];
+        msg.replyTo = data.replyTo || null;
         return msg;
     }
 }
@@ -481,6 +575,182 @@ class ChatManager {
         });
 
         return results;
+    }
+
+    /**
+     * ✨ 编辑消息
+     */
+    async editMessage(conversationId, messageId, newContent) {
+        if (!this.currentUserId) return false;
+
+        try {
+            // 获取消息
+            const messageRef = window.db.collection('conversations')
+                .doc(conversationId)
+                .collection('messages')
+                .doc(messageId);
+            
+            const messageDoc = await messageRef.get();
+            if (!messageDoc.exists) {
+                console.error('❌ 消息不存在');
+                return false;
+            }
+
+            const message = Message.fromJSON(messageDoc.data());
+            
+            // 只有发送者可以编辑
+            if (message.senderId !== this.currentUserId) {
+                console.error('❌ 只有消息发送者可以编辑');
+                return false;
+            }
+
+            // 编辑消息
+            message.edit(newContent);
+            
+            // 更新到 Firestore
+            await messageRef.update(message.toJSON());
+            
+            console.log(`✅ 编辑消息成功`);
+            return true;
+        } catch (error) {
+            console.error('❌ 编辑消息失败:', error);
+            return false;
+        }
+    }
+
+    /**
+     * ✨ 删除消息
+     */
+    async deleteMessage(conversationId, messageId) {
+        if (!this.currentUserId) return false;
+
+        try {
+            // 获取消息
+            const messageRef = window.db.collection('conversations')
+                .doc(conversationId)
+                .collection('messages')
+                .doc(messageId);
+            
+            const messageDoc = await messageRef.get();
+            if (!messageDoc.exists) {
+                console.error('❌ 消息不存在');
+                return false;
+            }
+
+            const message = Message.fromJSON(messageDoc.data());
+            
+            // 只有发送者可以删除
+            if (message.senderId !== this.currentUserId) {
+                console.error('❌ 只有消息发送者可以删除');
+                return false;
+            }
+
+            // 删除消息
+            await messageRef.delete();
+            
+            // 从本地缓存删除
+            if (this.messages.has(conversationId)) {
+                const messages = this.messages.get(conversationId);
+                const index = messages.findIndex(m => m.id === messageId);
+                if (index !== -1) {
+                    messages.splice(index, 1);
+                }
+            }
+
+            console.log(`✅ 删除消息成功`);
+            return true;
+        } catch (error) {
+            console.error('❌ 删除消息失败:', error);
+            return false;
+        }
+    }
+
+    /**
+     * ✨ 添加消息反应
+     */
+    async addReaction(conversationId, messageId, emoji, userName) {
+        if (!this.currentUserId) return false;
+
+        try {
+            const messageRef = window.db.collection('conversations')
+                .doc(conversationId)
+                .collection('messages')
+                .doc(messageId);
+            
+            const messageDoc = await messageRef.get();
+            if (!messageDoc.exists) {
+                console.error('❌ 消息不存在');
+                return false;
+            }
+
+            const message = Message.fromJSON(messageDoc.data());
+            
+            // 添加或移除反应
+            message.addReaction(emoji, this.currentUserId, userName);
+            
+            // 更新到 Firestore
+            await messageRef.update({
+                reactions: message.reactions
+            });
+
+            console.log(`✅ 反应已添加: ${emoji}`);
+            return true;
+        } catch (error) {
+            console.error('❌ 添加反应失败:', error);
+            return false;
+        }
+    }
+
+    /**
+     * ✨ 获取消息反应统计
+     */
+    getReactionStats(conversationId, messageId) {
+        const messages = this.messages.get(conversationId) || [];
+        const message = messages.find(m => m.id === messageId);
+        
+        if (!message) return [];
+        
+        return message.getReactionStats();
+    }
+
+    /**
+     * ✨ 回复消息 (添加引用)
+     */
+    async replyToMessage(receiverId, content, replyToMessageId) {
+        try {
+            const message = new Message(this.currentUserId, receiverId, content, 'text');
+            message.replyTo = replyToMessageId;
+
+            // 保存到 Firestore
+            const conversationId = this.getConversationId(this.currentUserId, receiverId);
+            await window.db.collection('conversations')
+                .doc(conversationId)
+                .collection('messages')
+                .doc(message.id)
+                .set(message.toJSON());
+
+            // 更新会话信息
+            await window.db.collection('conversations')
+                .doc(conversationId)
+                .set({
+                    participants: [this.currentUserId, receiverId],
+                    lastMessage: content,
+                    lastMessageTime: message.timestamp,
+                    lastMessageSender: this.currentUserId
+                }, { merge: true });
+
+            // 添加到本地缓存
+            if (!this.messages.has(conversationId)) {
+                this.messages.set(conversationId, []);
+            }
+            this.messages.get(conversationId).push(message);
+
+            console.log(`✅ 回复消息成功`);
+            return message;
+        } catch (error) {
+            console.error('❌ 回复消息失败:', error);
+            return null;
+        }
     }
 
     /**
