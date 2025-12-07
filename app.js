@@ -984,6 +984,114 @@ createApp({
             <!-- Main App -->
             <template v-else>
                 <!-- ====================================== -->
+                <!-- Auth Page (认证页面 - 仅当用户未登录时显示) -->
+                <!-- ====================================== -->
+                <div v-if="!user" class="h-screen flex items-center justify-center bg-gradient-to-br from-blue-600 via-blue-500 to-blue-700">
+                    <div class="max-w-md w-full px-6">
+                        <!-- Logo -->
+                        <div class="flex items-center justify-center mb-8">
+                            <div class="w-16 h-16 bg-white rounded-2xl flex items-center justify-center shadow-lg">
+                                <i class="fas fa-flask text-blue-600 text-4xl"></i>
+                            </div>
+                        </div>
+                        
+                        <!-- Title -->
+                        <h1 class="text-4xl font-black text-white text-center mb-2">LabMate Pro</h1>
+                        <p class="text-blue-100 text-center mb-8">{{ t('slogan') || '实时实验室协作平台' }}</p>
+                        
+                        <!-- Auth Card -->
+                        <div class="bg-white rounded-2xl shadow-2xl p-8">
+                            <!-- Mode Tabs -->
+                            <div class="flex space-x-2 mb-8">
+                                <button @click="authMode = 'login'" 
+                                        :class="['flex-1 py-3 rounded-lg font-semibold transition', authMode === 'login' ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200']">
+                                    {{ t('login') }}
+                                </button>
+                                <button @click="authMode = 'signup'" 
+                                        :class="['flex-1 py-3 rounded-lg font-semibold transition', authMode === 'signup' ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200']">
+                                    {{ t('signup') }}
+                                </button>
+                            </div>
+                            
+                            <!-- Error Message -->
+                            <div v-if="authForm.error" class="mb-4 p-4 bg-red-100 border border-red-400 text-red-700 rounded-lg text-sm">
+                                <i class="fas fa-exclamation-circle mr-2"></i>
+                                {{ authForm.error }}
+                            </div>
+                            
+                            <!-- Form -->
+                            <div class="space-y-4">
+                                <!-- Display Name (Signup only) -->
+                                <div v-if="authMode === 'signup'">
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">{{ t('displayName') || '昵称' }}</label>
+                                    <input v-model="authForm.displayName" 
+                                           type="text" 
+                                           :placeholder="t('enterDisplayName') || '输入昵称'"
+                                           class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition">
+                                </div>
+                                
+                                <!-- Email -->
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">{{ t('email') || '邮箱' }}</label>
+                                    <input v-model="authForm.email" 
+                                           type="email" 
+                                           :placeholder="t('enterEmail') || '输入邮箱'"
+                                           class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition">
+                                </div>
+                                
+                                <!-- Password -->
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">{{ t('password') || '密码' }}</label>
+                                    <input v-model="authForm.password" 
+                                           type="password" 
+                                           :placeholder="t('enterPassword') || '输入密码'"
+                                           class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition">
+                                </div>
+                                
+                                <!-- Submit Button -->
+                                <button @click="authMode === 'login' ? handleLogin() : handleSignup()" 
+                                        class="w-full bg-blue-500 text-white py-3 rounded-lg hover:bg-blue-600 transition font-semibold mt-6">
+                                    {{ authMode === 'login' ? t('login') : t('signup') }}
+                                </button>
+                            </div>
+                            
+                            <!-- Divider -->
+                            <div class="relative my-6">
+                                <div class="absolute inset-0 flex items-center">
+                                    <div class="w-full border-t border-gray-300"></div>
+                                </div>
+                                <div class="relative flex justify-center text-sm">
+                                    <span class="px-2 bg-white text-gray-500">{{ t('or') || '或' }}</span>
+                                </div>
+                            </div>
+                            
+                            <!-- Google Login -->
+                            <button @click="handleGoogleLogin" 
+                                    class="w-full border-2 border-gray-300 text-gray-700 py-3 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition font-semibold flex items-center justify-center space-x-2">
+                                <i class="fab fa-google text-red-500"></i>
+                                <span>{{ t('continueWithGoogle') || '使用 Google 继续' }}</span>
+                            </button>
+                        </div>
+                        
+                        <!-- Language Selector -->
+                        <div class="flex justify-center space-x-2 mt-6">
+                            <button @click="switchLanguage('zh')" 
+                                    :class="['px-3 py-1 rounded-lg text-sm transition', currentLang === 'zh' ? 'bg-white text-blue-600' : 'text-blue-100 hover:bg-blue-600']">
+                                中文
+                            </button>
+                            <button @click="switchLanguage('en')" 
+                                    :class="['px-3 py-1 rounded-lg text-sm transition', currentLang === 'en' ? 'bg-white text-blue-600' : 'text-blue-100 hover:bg-blue-600']">
+                                EN
+                            </button>
+                            <button @click="switchLanguage('ja')" 
+                                    :class="['px-3 py-1 rounded-lg text-sm transition', currentLang === 'ja' ? 'bg-white text-blue-600' : 'text-blue-100 hover:bg-blue-600']">
+                                日本語
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- ====================================== -->
                 <!-- Lobby View (实验室大厅) -->
                 <!-- ====================================== -->
                 <div v-if="currentView === 'lobby'" class="h-screen flex flex-col">
@@ -1026,12 +1134,6 @@ createApp({
                                         <i class="fas fa-sign-out-alt"></i>
                                     </button>
                                 </div>
-                                
-                                <!-- Login Button -->
-                                <button v-else @click="showAuthModal = true" 
-                                        class="bg-blue-500 text-white px-6 py-2 rounded-lg hover:bg-blue-600 transition">
-                                    {{ t('login') }}
-                                </button>
                             </div>
                         </div>
                     </header>
@@ -1298,74 +1400,8 @@ createApp({
                 <!-- ====================================== -->
                 <!-- Modals (模态框) -->
                 <!-- ====================================== -->
-                
-                <!-- Auth Modal -->
-                <div v-if="showAuthModal" class="modal-overlay" @click.self="showAuthModal = false">
-                    <div class="modal-content max-w-md">
-                        <div class="modal-header">
-                            <h3 class="text-xl font-semibold">{{ authMode === 'login' ? t('login') : t('signup') }}</h3>
-                            <button @click="showAuthModal = false" class="text-gray-400 hover:text-gray-600">
-                                <i class="fas fa-times"></i>
-                            </button>
-                        </div>
-                        
-                        <div class="modal-body">
-                            <div v-if="authForm.error" class="mb-4 p-3 bg-red-100 text-red-700 rounded-lg text-sm">
-                                {{ authForm.error }}
-                            </div>
-                            
-                            <div class="space-y-4">
-                                <div v-if="authMode === 'signup'">
-                                    <label class="block text-sm font-medium text-gray-700 mb-1">{{ t('displayName') }}</label>
-                                    <input v-model="authForm.displayName" 
-                                           type="text" 
-                                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                                </div>
-                                
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-1">{{ t('email') }}</label>
-                                    <input v-model="authForm.email" 
-                                           type="email" 
-                                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                                </div>
-                                
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-1">{{ t('password') }}</label>
-                                    <input v-model="authForm.password" 
-                                           type="password" 
-                                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                                </div>
-                                
-                                <button @click="authMode === 'login' ? handleLogin() : handleSignup()" 
-                                        class="w-full bg-blue-500 text-white py-2 rounded-lg hover:bg-blue-600 transition">
-                                    {{ authMode === 'login' ? t('login') : t('signup') }}
-                                </button>
-                                
-                                <div class="relative">
-                                    <div class="absolute inset-0 flex items-center">
-                                        <div class="w-full border-t border-gray-300"></div>
-                                    </div>
-                                    <div class="relative flex justify-center text-sm">
-                                        <span class="px-2 bg-white text-gray-500">{{ t('or') }}</span>
-                                    </div>
-                                </div>
-                                
-                                <button @click="handleGoogleLogin" 
-                                        class="w-full bg-white text-gray-700 py-2 rounded-lg border border-gray-300 hover:bg-gray-50 transition flex items-center justify-center space-x-2">
-                                    <i class="fab fa-google text-red-500"></i>
-                                    <span>{{ t('googleLogin') }}</span>
-                                </button>
-                                
-                                <div class="text-center text-sm">
-                                    <button @click="authMode = authMode === 'login' ? 'signup' : 'login'" 
-                                            class="text-blue-500 hover:underline">
-                                        {{ authMode === 'login' ? t('noAccount') : t('hasAccount') }}
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                <!-- Modals (模态框) -->
+                <!-- ====================================== -->
                 
                 <!-- Create Lab Modal -->
                 <div v-if="showLabModal" class="modal-overlay" @click.self="showLabModal = false">
