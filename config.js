@@ -701,6 +701,32 @@ window.Utils = {
         a.download = filename;
         a.click();
         URL.revokeObjectURL(url);
+    },
+    
+    /**
+     * 安全的日期转换函数
+     * 处理 Firestore Timestamp、Date 或字符串
+     */
+    toDate(timestamp) {
+        if (!timestamp) return null;
+        
+        // 如果已经是 Date 对象
+        if (timestamp instanceof Date) {
+            return timestamp;
+        }
+        
+        // 如果是 Firestore Timestamp (有 toDate 方法)
+        if (typeof timestamp.toDate === 'function') {
+            return timestamp.toDate();
+        }
+        
+        // 如果是字符串或数字
+        if (typeof timestamp === 'string' || typeof timestamp === 'number') {
+            return new Date(timestamp);
+        }
+        
+        // 其他情况返回 null
+        return null;
     }
 };
 

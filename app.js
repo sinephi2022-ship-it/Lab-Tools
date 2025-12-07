@@ -258,12 +258,15 @@ createApp({
                     .where('owner', '==', user.value.uid)
                     .get();
                 
-                myLabs.value = snapshot.docs.map(doc => ({
-                    id: doc.id,
-                    ...doc.data(),
-                    createdAt: doc.data().createdAt?.toDate(),
-                    updatedAt: doc.data().updatedAt?.toDate()
-                }));
+                myLabs.value = snapshot.docs.map(doc => {
+                    const data = doc.data();
+                    return {
+                        id: doc.id,
+                        ...data,
+                        createdAt: Utils.toDate(data.createdAt),
+                        updatedAt: Utils.toDate(data.updatedAt)
+                    };
+                });
                 
                 // 在客户端排序
                 myLabs.value.sort((a, b) => {
@@ -287,12 +290,15 @@ createApp({
                     .limit(50)
                     .get();
                 
-                publicLabs.value = snapshot.docs.map(doc => ({
-                    id: doc.id,
-                    ...doc.data(),
-                    createdAt: doc.data().createdAt?.toDate(),
-                    updatedAt: doc.data().updatedAt?.toDate()
-                }));
+                publicLabs.value = snapshot.docs.map(doc => {
+                    const data = doc.data();
+                    return {
+                        id: doc.id,
+                        ...data,
+                        createdAt: Utils.toDate(data.createdAt),
+                        updatedAt: Utils.toDate(data.updatedAt)
+                    };
+                });
                 
                 // 在客户端排序
                 publicLabs.value.sort((a, b) => {
@@ -322,12 +328,15 @@ createApp({
                     .where(firebase.firestore.FieldPath.documentId(), 'in', favorites)
                     .get();
                 
-                favoriteLabs.value = snapshot.docs.map(doc => ({
-                    id: doc.id,
-                    ...doc.data(),
-                    createdAt: doc.data().createdAt?.toDate(),
-                    updatedAt: doc.data().updatedAt?.toDate()
-                }));
+                favoriteLabs.value = snapshot.docs.map(doc => {
+                    const data = doc.data();
+                    return {
+                        id: doc.id,
+                        ...data,
+                        createdAt: Utils.toDate(data.createdAt),
+                        updatedAt: Utils.toDate(data.updatedAt)
+                    };
+                });
             } catch (error) {
                 console.error('❌ 加载收藏实验室失败:', error);
             }
@@ -389,8 +398,8 @@ createApp({
                 currentLab.value = {
                     id: labId,
                     ...labData,
-                    createdAt: labData.createdAt?.toDate(),
-                    updatedAt: labData.updatedAt?.toDate()
+                    createdAt: Utils.toDate(labData.createdAt),
+                    updatedAt: Utils.toDate(labData.updatedAt)
                 };
                 
                 // 添加用户到成员列表
@@ -663,11 +672,14 @@ createApp({
                 .orderBy('timestamp', 'asc')
                 .limit(100)
                 .onSnapshot(snapshot => {
-                    messages.value = snapshot.docs.map(doc => ({
-                        id: doc.id,
-                        ...doc.data(),
-                        timestamp: doc.data().timestamp?.toDate()
-                    }));
+                    messages.value = snapshot.docs.map(doc => {
+                        const data = doc.data();
+                        return {
+                            id: doc.id,
+                            ...data,
+                            timestamp: Utils.toDate(data.timestamp)
+                        };
+                    });
                     
                     // 滚动到底部
                     nextTick(() => {
