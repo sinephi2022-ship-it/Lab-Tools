@@ -797,19 +797,29 @@ createApp({
                     user.value = firebaseUser;
                     console.log('✅ 用户已登录:', firebaseUser.email);
                     
-                    // 加载用户资料
+                    // 加载或创建用户资料
                     const userDoc = await db.collection('users').doc(firebaseUser.uid).get();
                     if (userDoc.exists) {
                         userProfile.value = userDoc.data();
                         console.log('✅ 用户资料已加载');
-                        if (userProfile.value.lang) {
-                            currentLang.value = userProfile.value.lang;
-                        }
                     } else {
-                        console.warn('⚠️ 提示: 请先注册账户创建用户资料');
-                        user.value = null;
-                        showAuthModal.value = true;
-                        return;
+                        // 自动创建用户资料
+                        const newUserProfile = {
+                            uid: firebaseUser.uid,
+                            email: firebaseUser.email,
+                            displayName: firebaseUser.displayName || firebaseUser.email.split('@')[0],
+                            avatar: firebaseUser.photoURL || '',
+                            createdAt: new Date(),
+                            lang: 'zh',
+                            role: 'user'
+                        };
+                        await db.collection('users').doc(firebaseUser.uid).set(newUserProfile);
+                        userProfile.value = newUserProfile;
+                        console.log('✨ 自动创建了用户资料');
+                    }
+                    
+                    if (userProfile.value.lang) {
+                        currentLang.value = userProfile.value.lang;
                     }
                     
                     // 加载实验室
