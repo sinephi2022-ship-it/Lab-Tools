@@ -78,10 +78,20 @@ class CanvasEngine {
         this.lastPanY = 0;
         this.lastPanTime = 0;
         
-        // 性能优化
+        // 性能优化和监控
         this.renderRequest = null;
         this.lastRenderTime = 0;
         this.fps = 60;
+        
+        // 性能计数器
+        this.performanceMetrics = {
+            frameCount: 0,
+            fps: 0,
+            lastSecond: Date.now(),
+            renderTime: 0,
+            elementRenderTime: 0,
+            gridRenderTime: 0
+        };
         
         // 网格设置和缓存
         this.grid = {
@@ -679,6 +689,8 @@ class CanvasEngine {
      * 渲染一帧
      */
     render() {
+        const renderStartTime = performance.now();
+        
         // 清空画布
         this.ctx.fillStyle = '#ffffff';
         this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
@@ -697,11 +709,13 @@ class CanvasEngine {
         }
         
         // 绘制所有元素
+        const elementStartTime = performance.now();
         this.elements.forEach(element => {
             if (element.render) {
                 element.render(this.ctx, this.selectedElements.has(element.id));
             }
         });
+        this.performanceMetrics.elementRenderTime = performance.now() - elementStartTime;
         
         // 绘制框选框
         if (this.selectionBox.active) {
@@ -713,6 +727,9 @@ class CanvasEngine {
         
         // 绘制 UI 信息 (屏幕空间)
         this.renderUI();
+        
+        // 记录总渲染时间
+        this.performanceMetrics.renderTime = performance.now() - renderStartTime;
     }
     
     /**
@@ -801,16 +818,76 @@ class CanvasEngine {
     }
     
     /**
-     * 渲染 UI 信息
+     * 渲染 UI 信息（性能监控面板）
      */
     renderUI() {
-        // 显示 FPS, 元素数量, 缩放等信息
-        this.ctx.fillStyle = '#000';
-        this.ctx.font = '12px monospace';
+        const now = Date.now();
+        
+        // 计算 FPS
+        this.performanceMetrics.frameCount++;
+        if (now - this.performanceMetrics.lastSecond >= 1000) {
+            this.performanceMetrics.fps = this.performanceMetrics.frameCount;
+            this.performanceMetrics.frameCount = 0;
+            this.performanceMetrics.lastSecond = now;
+        }
+        
+        // 设置样式
+        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+        this.ctx.fillRect(10, 10, 280, 140);
+        
+        this.ctx.fillStyle = '#00ff00';
+        this.ctx.font = 'bold 14px monospace';
         this.ctx.textAlign = 'left';
-        this.ctx.fillText(`Elements: ${this.elements.size}`, 10, 20);
-        this.ctx.fillText(`Selected: ${this.selectedElements.size}`, 10, 35);
-        this.ctx.fillText(`Zoom: ${Math.round(this.camera.zoom * 100)}%`, 10, 50);
+        
+        // 显示性能监控信息
+        const padding = 10;
+        let y = 25;
+        const lineHeight = 18;
+        
+        // FPS
+        const fpsColor = this.performanceMetrics.fps >= 50 ? '#00ff00' : 
+                        this.performanceMetrics.fps >= 30 ? '#ffff00' : '#ff0000';
+        this.ctx.fillStyle = fpsColor;
+        this.ctx.fillText(`FPS: ${this.performanceMetrics.fps}`, padding + 10, y);
+        
+        y += lineHeight;
+        
+        // 元素数量
+        this.ctx.fillStyle = '#00ff00';
+        this.ctx.fillText(`Elements: ${this.elements.size}`, padding + 10, y);
+        
+        y += lineHeight;
+        
+        // 选中元素数量
+        this.ctx.fillStyle = this.selectedElements.size > 0 ? '#ffff00' : '#888888';
+        this.ctx.fillText(`Selected: ${this.selectedElements.size}`, padding + 10, y);
+        
+        y += lineHeight;
+        
+        // 缩放百分比
+        const zoomPercent = Math.round(this.camera.zoom * 100);
+        this.ctx.fillStyle = '#00ff00';
+        this.ctx.fillText(`Zoom: ${zoomPercent}%`, padding + 10, y);
+        
+        y += lineHeight;
+        
+        // 相机位置
+        this.ctx.fillStyle = '#888888';
+        this.ctx.font = '12px monospace';
+        this.ctx.fillText(`Cam: (${Math.round(this.camera.x)}, ${Math.round(this.camera.y)})`, padding + 10, y);
+        
+        y += lineHeight;
+        
+        // 渲染时间
+        this.ctx.fillStyle = '#00aaff';
+        this.ctx.fillText(`Render: ${this.performanceMetrics.renderTime.toFixed(2)}ms`, padding + 10, y);
+        
+        y += lineHeight;
+        
+        // 网格缓存状态
+        const cacheStatus = this.grid.cached.lastZoom === this.camera.zoom ? '✓' : '✗';
+        this.ctx.fillStyle = this.grid.cached.lastZoom === this.camera.zoom ? '#00ff00' : '#ffaa00';
+        this.ctx.fillText(`Grid Cache: ${cacheStatus}`, padding + 10, y);
     }
     
     /**
