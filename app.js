@@ -867,7 +867,12 @@
             };
             
             const createLab = async () => {
-                if (!createLabForm.title || !createLabForm.title.trim()) {
+                if (!user.value) {
+                    Utils.toast('Please log in first', 'error');
+                    return;
+                }
+                
+                if (!createLabForm || !createLabForm.title || !createLabForm.title.trim()) {
                     Utils.toast('Please enter a lab name', 'error');
                     return;
                 }
