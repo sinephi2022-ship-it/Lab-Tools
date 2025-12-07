@@ -641,11 +641,28 @@ createApp({
             if (!currentLab.value) return;
             
             try {
+                // 将元素对象转换为 JSON（Firebase 不支持自定义对象）
+                const elementsJSON = canvasElements.value.map(elem => {
+                    if (typeof elem.toJSON === 'function') {
+                        return elem.toJSON();
+                    }
+                    return elem;
+                });
+                
+                const connectionsJSON = connections.value.map(conn => {
+                    if (typeof conn.toJSON === 'function') {
+                        return conn.toJSON();
+                    }
+                    return conn;
+                });
+                
                 await db.collection('labs').doc(currentLab.value.id).update({
-                    elements: canvasElements.value,
-                    connections: connections.value,
+                    elements: elementsJSON,
+                    connections: connectionsJSON,
                     updatedAt: firebase.firestore.FieldValue.serverTimestamp()
                 });
+                
+                console.log(`✅ 已同步到Firebase: ${elementsJSON.length} 个元素`);
             } catch (error) {
                 console.error('❌ 同步到Firebase失败:', error);
             }
