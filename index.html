@@ -111,18 +111,18 @@
         
         // 自动隐藏加载屏幕 (备用方案)
         window.hideLoadingScreen = function() {
-            const loadingScreen = document.querySelector('[v-if="isLoading"]');
+            const loadingScreen = document.getElementById('loading-screen');
             if (loadingScreen) {
                 loadingScreen.style.display = 'none';
                 console.log('✅ 手动隐藏加载屏幕');
             }
         };
         
-        // 立即开始尝试隐藏（每 2 秒检查一次）
+        // 立即开始尝试隐藏（每 500ms 检查一次）
         let hideAttempts = 0;
         const hideInterval = setInterval(() => {
             hideAttempts++;
-            const loadingScreen = document.querySelector('[v-if="isLoading"]');
+            const loadingScreen = document.getElementById('loading-screen');
             
             if (loadingScreen && loadingScreen.offsetHeight > 0) {
                 loadingScreen.style.display = 'none';
@@ -130,16 +130,16 @@
                 clearInterval(hideInterval);
             }
             
-            // 最多尝试 15 次 (30 秒)
-            if (hideAttempts >= 15) {
+            // 最多尝试 60 次 (30 秒)
+            if (hideAttempts >= 60) {
                 clearInterval(hideInterval);
                 console.warn('⚠️ 加载屏幕隐藏超时');
             }
-        }, 2000);
+        }, 500);
         
         // 旧的 30 秒超时保留作为最后保险
         setTimeout(() => {
-            const loadingScreen = document.querySelector('[v-if="isLoading"]');
+            const loadingScreen = document.getElementById('loading-screen');
             if (loadingScreen && loadingScreen.offsetHeight > 0) {
                 loadingScreen.style.display = 'none';
                 console.warn('⚠️ 30秒超时，强制隐藏加载屏幕');
