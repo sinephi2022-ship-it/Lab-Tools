@@ -834,6 +834,7 @@ createApp({
                 }
                 
                 isLoading.value = false;
+                console.log('✨ 加载界面已关闭，应用初始化完成');
             });
             
             // 键盘快捷键
