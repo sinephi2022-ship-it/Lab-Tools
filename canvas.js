@@ -288,6 +288,172 @@ class CanvasEngine {
     }
     
     /**
+     * 高级交互功能
+     */
+
+    /**
+     * 对齐选中元素
+     */
+    alignSelectedElements(direction = 'left') {
+        if (this.selectedElements.size < 2) return;
+        
+        const elements = Array.from(this.selectedElements)
+            .map(id => this.elements.get(id))
+            .filter(el => el && !el.locked);
+        
+        if (elements.length === 0) return;
+        
+        const bounds = elements.map(el => el.getBounds());
+        
+        switch (direction) {
+            case 'left':
+                const leftmost = Math.min(...bounds.map(b => b.left));
+                elements.forEach((el, i) => {
+                    el.x = leftmost;
+                });
+                break;
+                
+            case 'right':
+                const rightmost = Math.max(...bounds.map(b => b.right));
+                elements.forEach((el, i) => {
+                    el.x = rightmost - el.width;
+                });
+                break;
+                
+            case 'center-h':
+                const centerX = (bounds.reduce((sum, b) => sum + b.centerX, 0) / bounds.length);
+                elements.forEach(el => {
+                    el.x = centerX - el.width / 2;
+                });
+                break;
+                
+            case 'top':
+                const topmost = Math.min(...bounds.map(b => b.top));
+                elements.forEach(el => {
+                    el.y = topmost;
+                });
+                break;
+                
+            case 'bottom':
+                const bottommost = Math.max(...bounds.map(b => b.bottom));
+                elements.forEach(el => {
+                    el.y = bottommost - el.height;
+                });
+                break;
+                
+            case 'center-v':
+                const centerY = (bounds.reduce((sum, b) => sum + b.centerY, 0) / bounds.length);
+                elements.forEach(el => {
+                    el.y = centerY - el.height / 2;
+                });
+                break;
+        }
+        
+        elements.forEach(el => {
+            el.updatedAt = Date.now();
+        });
+        
+        this.dirtyFlags.RENDER = true;
+        this.emit('elementsAligned', { direction, elements });
+    }
+
+    /**
+     * 分布选中元素（相等间距）
+     */
+    distributeSelectedElements(direction = 'horizontal', spacing = 20) {
+        if (this.selectedElements.size < 3) return;
+        
+        const elements = Array.from(this.selectedElements)
+            .map(id => this.elements.get(id))
+            .filter(el => el && !el.locked);
+        
+        if (elements.length < 3) return;
+        
+        if (direction === 'horizontal') {
+            // 按 X 坐标排序
+            elements.sort((a, b) => a.x - b.x);
+            
+            // 计算总宽度和可用空间
+            const firstX = elements[0].x;
+            const lastX = elements[elements.length - 1].x + elements[elements.length - 1].width;
+            const totalSpace = lastX - firstX;
+            const totalElementWidth = elements.reduce((sum, el) => sum + el.width, 0);
+            const gaps = spacing * (elements.length - 1);
+            
+            // 均匀分布
+            let currentX = firstX;
+            elements.forEach((el, i) => {
+                el.x = currentX;
+                currentX += el.width + spacing;
+                el.updatedAt = Date.now();
+            });
+        } else if (direction === 'vertical') {
+            // 按 Y 坐标排序
+            elements.sort((a, b) => a.y - b.y);
+            
+            let currentY = elements[0].y;
+            elements.forEach((el, i) => {
+                el.y = currentY;
+                currentY += el.height + spacing;
+                el.updatedAt = Date.now();
+            });
+        }
+        
+        this.dirtyFlags.RENDER = true;
+        this.emit('elementsDistributed', { direction, spacing, elements });
+    }
+
+    /**
+     * 克隆选中元素
+     */
+    cloneSelectedElements() {
+        if (this.selectedElements.size === 0) return;
+        
+        const cloned = [];
+        const newIds = new Set();
+        
+        Array.from(this.selectedElements)
+            .map(id => this.elements.get(id))
+            .filter(el => el)
+            .forEach(el => {
+                const clone = el.clone();
+                clone.x += 20;
+                clone.y += 20;
+                this.addElement(clone);
+                cloned.push(clone);
+                newIds.add(clone.id);
+            });
+        
+        // 切换选择到克隆的元素
+        this.selectedElements.clear();
+        newIds.forEach(id => this.selectedElements.add(id));
+        
+        this.emit('elementsCloned', cloned);
+    }
+
+    /**
+     * 获取选中元素的属性
+     */
+    getSelectedElementsProperties() {
+        const elements = Array.from(this.selectedElements)
+            .map(id => this.elements.get(id))
+            .filter(el => el);
+        
+        if (elements.length === 0) return null;
+        if (elements.length === 1) {
+            return elements[0].getPropertyPanel?.() || [];
+        }
+        
+        // 多选时返回通用属性
+        return [
+            { name: 'alignment', label: '对齐', type: 'enum', value: 'left', options: ['left', 'right', 'center-h', 'top', 'bottom', 'center-v'] },
+            { name: 'distribution', label: '分布', type: 'enum', value: 'horizontal', options: ['horizontal', 'vertical'] },
+            { name: 'spacing', label: '间距', type: 'number', value: 20 }
+        ];
+    }
+
+    /**
+     * 获取所有元素
      * 检测点击的元素 (从上到下)
      */
     getElementAtPoint(worldX, worldY) {
@@ -346,8 +512,9 @@ class CanvasEngine {
         this.canvas.addEventListener('mousedown', this.onMouseDown.bind(this));
         this.canvas.addEventListener('mousemove', this.onMouseMove.bind(this));
         this.canvas.addEventListener('mouseup', this.onMouseUp.bind(this));
+        this.canvas.addEventListener('dblclick', this.onDoubleClick.bind(this));
         this.canvas.addEventListener('wheel', this.onWheel.bind(this));
-        this.canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+        this.canvas.addEventListener('contextmenu', this.onContextMenu.bind(this));
         
         // 触摸事件 (移动端支持)
         this.canvas.addEventListener('touchstart', this.onTouchStart.bind(this));
@@ -550,6 +717,86 @@ class CanvasEngine {
     /**
      * 键盘按下
      */
+    /**
+     * 双击事件 - 编辑元素
+     */
+    onDoubleClick(e) {
+        const rect = this.canvas.getBoundingClientRect();
+        const screenX = e.clientX - rect.left;
+        const screenY = e.clientY - rect.top;
+        const world = this.screenToWorld(screenX, screenY);
+        
+        const clickedElement = this.getElementAtPoint(world.x, world.y);
+        if (clickedElement) {
+            // 触发双击编辑回调
+            if (this.onElementDoubleClick) {
+                this.onElementDoubleClick(clickedElement);
+            }
+            
+            // 标记为编辑中
+            if (clickedElement.editing !== undefined) {
+                clickedElement.editing = true;
+            }
+            
+            this.dirtyFlags.RENDER = true;
+        }
+    }
+
+    /**
+     * 右键菜单
+     */
+    onContextMenu(e) {
+        e.preventDefault();
+        
+        const rect = this.canvas.getBoundingClientRect();
+        const screenX = e.clientX - rect.left;
+        const screenY = e.clientY - rect.top;
+        const world = this.screenToWorld(screenX, screenY);
+        
+        const clickedElement = this.getElementAtPoint(world.x, world.y);
+        
+        // 创建上下文菜单
+        const menu = {
+            x: e.clientX,
+            y: e.clientY,
+            items: []
+        };
+        
+        if (clickedElement) {
+            if (!this.selectedElements.has(clickedElement.id)) {
+                this.selectedElements.clear();
+                this.selectedElements.add(clickedElement.id);
+            }
+            
+            menu.items = [
+                { label: '编辑', action: 'edit', element: clickedElement },
+                { label: '复制', action: 'copy', element: clickedElement },
+                { label: '删除', action: 'delete', element: clickedElement },
+                { type: 'separator' },
+                { label: '锁定', action: 'toggle-lock', element: clickedElement },
+                { label: '隐藏', action: 'toggle-visibility', element: clickedElement },
+                { type: 'separator' },
+                { label: '克隆', action: 'clone', element: clickedElement },
+                { label: '对齐到顶部', action: 'align-top', elements: Array.from(this.selectedElements).map(id => this.elements.get(id)) },
+                { label: '水平分布', action: 'distribute-h', elements: Array.from(this.selectedElements).map(id => this.elements.get(id)) }
+            ];
+        } else {
+            menu.items = [
+                { label: '粘贴', action: 'paste' },
+                { type: 'separator' },
+                { label: '全选', action: 'select-all' },
+                { label: '取消选择', action: 'deselect' }
+            ];
+        }
+        
+        // 触发菜单回调
+        if (this.onContextMenu) {
+            this.onContextMenu(menu);
+        }
+        
+        this.dirtyFlags.RENDER = true;
+    }
+
     onKeyDown(e) {
         // Delete / Backspace - 删除选中元素
         if ((e.key === 'Delete' || e.key === 'Backspace') && this.selectedElements.size > 0) {

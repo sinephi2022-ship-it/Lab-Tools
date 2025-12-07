@@ -62,6 +62,140 @@ class BaseElement {
     }
 
     /**
+     * 高级交互功能
+     */
+
+    /**
+     * 获取元素的属性编辑面板配置
+     * @returns {Array} 属性数组，每项包含 {name, label, type, value}
+     */
+    getPropertyPanel() {
+        return [
+            { name: 'x', label: '位置 X', type: 'number', value: this.x },
+            { name: 'y', label: '位置 Y', type: 'number', value: this.y },
+            { name: 'width', label: '宽度', type: 'number', value: this.width },
+            { name: 'height', label: '高度', type: 'number', value: this.height },
+            { name: 'rotation', label: '旋转角度', type: 'number', value: this.rotation },
+            { name: 'zIndex', label: '图层深度', type: 'number', value: this.zIndex },
+            { name: 'locked', label: '锁定', type: 'boolean', value: this.locked },
+            { name: 'visible', label: '可见', type: 'boolean', value: this.visible }
+        ];
+    }
+
+    /**
+     * 更新属性
+     */
+    updateProperty(name, value) {
+        if (name === 'x' || name === 'y') {
+            this[name] = parseFloat(value);
+        } else if (name === 'width' || name === 'height') {
+            this.resize(name === 'width' ? parseFloat(value) : this.width,
+                       name === 'height' ? parseFloat(value) : this.height);
+            return;
+        } else if (name === 'rotation' || name === 'zIndex') {
+            this[name] = parseFloat(value);
+        } else if (name === 'locked' || name === 'visible') {
+            this[name] = value === true || value === 'true';
+        }
+        this.updatedAt = Date.now();
+    }
+
+    /**
+     * 获取元素边界框（用于碰撞检测、对齐等）
+     */
+    getBounds() {
+        return {
+            left: this.x,
+            top: this.y,
+            right: this.x + this.width,
+            bottom: this.y + this.height,
+            centerX: this.x + this.width / 2,
+            centerY: this.y + this.height / 2,
+            width: this.width,
+            height: this.height
+        };
+    }
+
+    /**
+     * 克隆元素
+     */
+    clone() {
+        const cloned = new this.constructor(this.x + 20, this.y + 20);
+        cloned.id = `${this.type}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        Object.assign(cloned, this);
+        return cloned;
+    }
+
+    /**
+     * 与另一个元素比较位置（用于对齐）
+     */
+    alignTo(target, direction = 'left') {
+        const targetBounds = target.getBounds();
+        const thisBounds = this.getBounds();
+
+        switch (direction) {
+            case 'left':
+                this.x = targetBounds.left;
+                break;
+            case 'right':
+                this.x = targetBounds.right - this.width;
+                break;
+            case 'center-x':
+                this.x = targetBounds.centerX - this.width / 2;
+                break;
+            case 'top':
+                this.y = targetBounds.top;
+                break;
+            case 'bottom':
+                this.y = targetBounds.bottom - this.height;
+                break;
+            case 'center-y':
+                this.y = targetBounds.centerY - this.height / 2;
+                break;
+        }
+        this.updatedAt = Date.now();
+    }
+
+    /**
+     * 分布多个元素（相等间距）
+     */
+    static distributeElements(elements, direction = 'horizontal', spacing = 20) {
+        if (elements.length < 2) return;
+
+        if (direction === 'horizontal') {
+            // 按 X 坐标排序
+            elements.sort((a, b) => a.x - b.x);
+            
+            let totalWidth = elements.reduce((sum, el) => sum + el.width, 0);
+            let totalSpace = spacing * (elements.length - 1);
+            let startX = elements[0].x;
+            
+            let currentX = startX;
+            elements.forEach((el, i) => {
+                el.x = currentX;
+                currentX += el.width + spacing;
+            });
+        } else if (direction === 'vertical') {
+            // 按 Y 坐标排序
+            elements.sort((a, b) => a.y - b.y);
+            
+            let totalHeight = elements.reduce((sum, el) => sum + el.height, 0);
+            let totalSpace = spacing * (elements.length - 1);
+            let startY = elements[0].y;
+            
+            let currentY = startY;
+            elements.forEach((el, i) => {
+                el.y = currentY;
+                currentY += el.height + spacing;
+            });
+        }
+
+        elements.forEach(el => {
+            el.updatedAt = Date.now();
+        });
+    }
+
+    /**
      * 序列化为 JSON
      */
     toJSON() {
