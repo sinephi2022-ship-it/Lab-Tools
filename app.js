@@ -460,7 +460,12 @@ createApp({
             if (!currentLab.value) return;
             
             try {
-                // 清理监听器
+                // 销毁 Canvas 引擎 (停止渲染循环和事件监听)
+                if (canvasEngine.value) {
+                    canvasEngine.value.destroy();
+                }
+                
+                // 清理 Firebase 监听器
                 if (labListener) labListener();
                 if (messagesListener) messagesListener();
                 if (presenceListener) presenceListener();
@@ -469,9 +474,13 @@ createApp({
                 await db.collection('labs').doc(currentLab.value.id)
                     .collection('presence').doc(user.value.uid).delete();
                 
+                // 清空状态
                 currentLab.value = null;
-                currentView.value = 'lobby';
                 canvasEngine.value = null;
+                canvasElements.value = [];
+                connections.value = [];
+                messages.value = [];
+                currentView.value = 'lobby';
                 
                 console.log('✅ 离开实验室');
             } catch (error) {
