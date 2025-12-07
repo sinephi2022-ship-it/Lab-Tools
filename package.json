@@ -1,6 +1,6 @@
 {
   "name": "labmate-pro",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "Real-time Lab Collaboration Platform with infinite canvas and Firebase integration",
   "main": "index.html",
   "scripts": {
