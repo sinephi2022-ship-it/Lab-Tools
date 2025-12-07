@@ -402,6 +402,28 @@ createApp({
                     updatedAt: Utils.toDate(labData.updatedAt)
                 };
                 
+                // 验证和修复视图状态
+                if (!currentLab.value.view) {
+                    currentLab.value.view = { panX: 0, panY: 0, zoom: 1 };
+                } else {
+                    currentLab.value.view = {
+                        panX: isNaN(currentLab.value.view.panX) ? 0 : currentLab.value.view.panX,
+                        panY: isNaN(currentLab.value.view.panY) ? 0 : currentLab.value.view.panY,
+                        zoom: isNaN(currentLab.value.view.zoom) ? 1 : currentLab.value.view.zoom
+                    };
+                }
+                
+                // 验证元素
+                if (currentLab.value.elements && Array.isArray(currentLab.value.elements)) {
+                    currentLab.value.elements = currentLab.value.elements.map(elem => ({
+                        ...elem,
+                        x: elem.x || 0,
+                        y: elem.y || 0,
+                        w: elem.w || 150,
+                        h: elem.h || 150
+                    }));
+                }
+                
                 // 添加用户到成员列表
                 if (!labData.members.includes(user.value.uid)) {
                     await db.collection('labs').doc(labId).update({
