@@ -837,6 +837,14 @@ createApp({
                 console.log('✨ 加载界面已关闭，应用初始化完成');
             });
             
+            // 强制超时 - 如果 30 秒后还没加载完，强制关闭加载屏幕
+            setTimeout(() => {
+                if (isLoading.value) {
+                    console.warn('⚠️ 强制关闭加载屏幕（超时）');
+                    isLoading.value = false;
+                }
+            }, 30000);
+            
             // 键盘快捷键
             document.addEventListener('keydown', (e) => {
                 if (e.ctrlKey || e.metaKey) {
