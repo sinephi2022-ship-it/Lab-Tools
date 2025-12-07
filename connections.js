@@ -1,444 +1,651 @@
 /**
  * LabMate Pro - Connection System
- * Draw and manage connections between canvas elements
+ * 元素连接线系统 - 贝塞尔曲线 + 箭头
+ * 
+ * @author Sine chen
+ * @version 2.0.0
+ * @date 2025-12-07
  */
 
-class Connection {
-    constructor(id, fromElementId, toElementId, data = {}) {
-        this.id = id;
-        this.fromElementId = fromElementId;
-        this.toElementId = toElementId;
-        this.label = data.label || '';
-        this.style = data.style || 'solid'; // 'solid', 'dashed', 'dotted'
-        this.color = data.color || '#64748b';
-        this.lineWidth = data.lineWidth || 2;
-        this.arrowType = data.arrowType || 'end'; // 'none', 'start', 'end', 'both'
-        this.curvature = data.curvature || 0; // 0 = straight, 0.5 = curved
-        this.createdAt = data.createdAt || new Date();
-        this.updatedAt = data.updatedAt || new Date();
+// ========================================
+// 连接点 (Anchor Point)
+// ========================================
+class AnchorPoint {
+    constructor(elementId, position = 'center') {
+        this.elementId = elementId;
+        this.position = position; // 'top', 'right', 'bottom', 'left', 'center'
+        this.offsetX = 0;
+        this.offsetY = 0;
     }
-    
+
+    /**
+     * 计算锚点的世界坐标
+     */
+    getWorldPosition(element) {
+        let x = element.x;
+        let y = element.y;
+
+        switch (this.position) {
+            case 'top':
+                x += element.width / 2;
+                break;
+            case 'right':
+                x += element.width;
+                y += element.height / 2;
+                break;
+            case 'bottom':
+                x += element.width / 2;
+                y += element.height;
+                break;
+            case 'left':
+                y += element.height / 2;
+                break;
+            case 'center':
+                x += element.width / 2;
+                y += element.height / 2;
+                break;
+        }
+
+        return {
+            x: x + this.offsetX,
+            y: y + this.offsetY
+        };
+    }
+
+    toJSON() {
+        return {
+            elementId: this.elementId,
+            position: this.position,
+            offsetX: this.offsetX,
+            offsetY: this.offsetY
+        };
+    }
+
+    static fromJSON(data) {
+        const anchor = new AnchorPoint(data.elementId, data.position);
+        anchor.offsetX = data.offsetX || 0;
+        anchor.offsetY = data.offsetY || 0;
+        return anchor;
+    }
+}
+
+// ========================================
+// 连接线类
+// ========================================
+class Connection {
+    constructor(sourceElementId, targetElementId) {
+        this.id = `conn_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        this.source = new AnchorPoint(sourceElementId, 'right');
+        this.target = new AnchorPoint(targetElementId, 'left');
+        
+        // 样式配置
+        this.color = '#2196F3';
+        this.width = 2;
+        this.style = 'bezier'; // 'bezier', 'straight', 'orthogonal'
+        this.arrowType = 'arrow'; // 'arrow', 'circle', 'diamond', 'none'
+        this.arrowSize = 10;
+        this.dashed = false;
+        this.dashPattern = [5, 5];
+        
+        // 标签
+        this.label = '';
+        this.labelPosition = 0.5; // 0-1, 标签在连线上的位置
+        this.labelBackgroundColor = '#FFFFFF';
+        this.labelTextColor = '#000000';
+        this.labelFontSize = 12;
+        
+        // 状态
+        this.visible = true;
+        this.selected = false;
+        this.hovered = false;
+        
+        // 控制点(用于贝塞尔曲线)
+        this.controlPoint1 = null; // 自动计算
+        this.controlPoint2 = null; // 自动计算
+        
+        // 元数据
+        this.createdAt = Date.now();
+        this.updatedAt = Date.now();
+    }
+
+    /**
+     * 渲染连接线
+     */
+    render(ctx, elements) {
+        if (!this.visible) return;
+
+        const sourceElement = elements.get(this.source.elementId);
+        const targetElement = elements.get(this.target.elementId);
+
+        if (!sourceElement || !targetElement) {
+            console.warn(`连接线 ${this.id} 的元素不存在`);
+            return;
+        }
+
+        const start = this.source.getWorldPosition(sourceElement);
+        const end = this.target.getWorldPosition(targetElement);
+
+        ctx.save();
+
+        // 设置样式
+        ctx.strokeStyle = this.selected ? '#FF9800' : (this.hovered ? '#64B5F6' : this.color);
+        ctx.lineWidth = this.selected ? this.width + 2 : this.width;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+
+        if (this.dashed) {
+            ctx.setLineDash(this.dashPattern);
+        }
+
+        // 绘制连线
+        switch (this.style) {
+            case 'straight':
+                this.drawStraightLine(ctx, start, end);
+                break;
+            case 'orthogonal':
+                this.drawOrthogonalLine(ctx, start, end);
+                break;
+            case 'bezier':
+            default:
+                this.drawBezierLine(ctx, start, end);
+                break;
+        }
+
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // 绘制箭头
+        this.drawArrow(ctx, start, end);
+
+        // 绘制标签
+        if (this.label) {
+            this.drawLabel(ctx, start, end);
+        }
+
+        // 绘制选择/悬停高亮
+        if (this.selected || this.hovered) {
+            this.drawHighlight(ctx, start, end);
+        }
+
+        ctx.restore();
+    }
+
+    /**
+     * 绘制直线
+     */
+    drawStraightLine(ctx, start, end) {
+        ctx.beginPath();
+        ctx.moveTo(start.x, start.y);
+        ctx.lineTo(end.x, end.y);
+    }
+
+    /**
+     * 绘制正交线(直角折线)
+     */
+    drawOrthogonalLine(ctx, start, end) {
+        ctx.beginPath();
+        ctx.moveTo(start.x, start.y);
+        
+        const midX = (start.x + end.x) / 2;
+        ctx.lineTo(midX, start.y);
+        ctx.lineTo(midX, end.y);
+        ctx.lineTo(end.x, end.y);
+    }
+
+    /**
+     * 绘制贝塞尔曲线
+     */
+    drawBezierLine(ctx, start, end) {
+        // 自动计算控制点
+        const dx = end.x - start.x;
+        const dy = end.y - start.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        const controlDistance = Math.min(distance * 0.5, 100);
+
+        const cp1 = this.controlPoint1 || {
+            x: start.x + controlDistance,
+            y: start.y
+        };
+
+        const cp2 = this.controlPoint2 || {
+            x: end.x - controlDistance,
+            y: end.y
+        };
+
+        ctx.beginPath();
+        ctx.moveTo(start.x, start.y);
+        ctx.bezierCurveTo(cp1.x, cp1.y, cp2.x, cp2.y, end.x, end.y);
+    }
+
+    /**
+     * 绘制箭头
+     */
+    drawArrow(ctx, start, end) {
+        if (this.arrowType === 'none') return;
+
+        // 计算箭头方向
+        const angle = Math.atan2(end.y - start.y, end.x - start.x);
+        const arrowSize = this.arrowSize;
+
+        ctx.save();
+        ctx.translate(end.x, end.y);
+        ctx.rotate(angle);
+
+        ctx.fillStyle = this.color;
+        ctx.strokeStyle = this.color;
+
+        switch (this.arrowType) {
+            case 'arrow':
+                // 三角形箭头
+                ctx.beginPath();
+                ctx.moveTo(0, 0);
+                ctx.lineTo(-arrowSize, -arrowSize / 2);
+                ctx.lineTo(-arrowSize, arrowSize / 2);
+                ctx.closePath();
+                ctx.fill();
+                break;
+
+            case 'circle':
+                // 圆形箭头
+                ctx.beginPath();
+                ctx.arc(0, 0, arrowSize / 2, 0, Math.PI * 2);
+                ctx.fill();
+                break;
+
+            case 'diamond':
+                // 菱形箭头
+                ctx.beginPath();
+                ctx.moveTo(0, 0);
+                ctx.lineTo(-arrowSize * 0.7, -arrowSize / 2);
+                ctx.lineTo(-arrowSize * 1.4, 0);
+                ctx.lineTo(-arrowSize * 0.7, arrowSize / 2);
+                ctx.closePath();
+                ctx.fill();
+                break;
+        }
+
+        ctx.restore();
+    }
+
+    /**
+     * 绘制标签
+     */
+    drawLabel(ctx, start, end) {
+        // 计算标签位置
+        const t = this.labelPosition;
+        let x, y;
+
+        if (this.style === 'bezier') {
+            const dx = end.x - start.x;
+            const distance = Math.sqrt(dx * dx + (end.y - start.y) * (end.y - start.y));
+            const controlDistance = Math.min(distance * 0.5, 100);
+
+            const cp1 = { x: start.x + controlDistance, y: start.y };
+            const cp2 = { x: end.x - controlDistance, y: end.y };
+
+            // 贝塞尔曲线上的点
+            const t1 = 1 - t;
+            x = t1 * t1 * t1 * start.x + 3 * t1 * t1 * t * cp1.x + 3 * t1 * t * t * cp2.x + t * t * t * end.x;
+            y = t1 * t1 * t1 * start.y + 3 * t1 * t1 * t * cp1.y + 3 * t1 * t * t * cp2.y + t * t * t * end.y;
+        } else {
+            x = start.x + (end.x - start.x) * t;
+            y = start.y + (end.y - start.y) * t;
+        }
+
+        // 绘制标签背景
+        ctx.font = `${this.labelFontSize}px Arial`;
+        const metrics = ctx.measureText(this.label);
+        const padding = 4;
+        const bgWidth = metrics.width + padding * 2;
+        const bgHeight = this.labelFontSize + padding * 2;
+
+        ctx.fillStyle = this.labelBackgroundColor;
+        ctx.fillRect(x - bgWidth / 2, y - bgHeight / 2, bgWidth, bgHeight);
+
+        // 绘制边框
+        ctx.strokeStyle = this.color;
+        ctx.lineWidth = 1;
+        ctx.strokeRect(x - bgWidth / 2, y - bgHeight / 2, bgWidth, bgHeight);
+
+        // 绘制文字
+        ctx.fillStyle = this.labelTextColor;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(this.label, x, y);
+    }
+
+    /**
+     * 绘制高亮效果
+     */
+    drawHighlight(ctx, start, end) {
+        ctx.save();
+        ctx.strokeStyle = this.selected ? '#FF9800' : '#64B5F6';
+        ctx.lineWidth = this.width + 6;
+        ctx.globalAlpha = 0.3;
+
+        if (this.style === 'bezier') {
+            this.drawBezierLine(ctx, start, end);
+        } else if (this.style === 'orthogonal') {
+            this.drawOrthogonalLine(ctx, start, end);
+        } else {
+            this.drawStraightLine(ctx, start, end);
+        }
+
+        ctx.stroke();
+        ctx.restore();
+    }
+
+    /**
+     * 检测点是否在连线上
+     */
+    hitTest(x, y, elements, threshold = 8) {
+        const sourceElement = elements.get(this.source.elementId);
+        const targetElement = elements.get(this.target.elementId);
+
+        if (!sourceElement || !targetElement) return false;
+
+        const start = this.source.getWorldPosition(sourceElement);
+        const end = this.target.getWorldPosition(targetElement);
+
+        // 简化的点到线段距离检测
+        const distance = this.pointToLineDistance(x, y, start, end);
+        return distance <= threshold;
+    }
+
+    /**
+     * 点到线段的距离
+     */
+    pointToLineDistance(px, py, start, end) {
+        const dx = end.x - start.x;
+        const dy = end.y - start.y;
+        const lengthSquared = dx * dx + dy * dy;
+
+        if (lengthSquared === 0) {
+            return Math.sqrt((px - start.x) ** 2 + (py - start.y) ** 2);
+        }
+
+        let t = ((px - start.x) * dx + (py - start.y) * dy) / lengthSquared;
+        t = Math.max(0, Math.min(1, t));
+
+        const projX = start.x + t * dx;
+        const projY = start.y + t * dy;
+
+        return Math.sqrt((px - projX) ** 2 + (py - projY) ** 2);
+    }
+
+    /**
+     * 设置样式
+     */
+    setStyle(style) {
+        this.style = style;
+        this.updatedAt = Date.now();
+    }
+
+    /**
+     * 设置颜色
+     */
+    setColor(color) {
+        this.color = color;
+        this.updatedAt = Date.now();
+    }
+
+    /**
+     * 设置标签
+     */
+    setLabel(label) {
+        this.label = label;
+        this.updatedAt = Date.now();
+    }
+
+    /**
+     * 序列化
+     */
     toJSON() {
         return {
             id: this.id,
-            fromElementId: this.fromElementId,
-            toElementId: this.toElementId,
-            label: this.label,
-            style: this.style,
+            source: this.source.toJSON(),
+            target: this.target.toJSON(),
             color: this.color,
-            lineWidth: this.lineWidth,
+            width: this.width,
+            style: this.style,
             arrowType: this.arrowType,
-            curvature: this.curvature,
+            arrowSize: this.arrowSize,
+            dashed: this.dashed,
+            dashPattern: this.dashPattern,
+            label: this.label,
+            labelPosition: this.labelPosition,
+            labelBackgroundColor: this.labelBackgroundColor,
+            labelTextColor: this.labelTextColor,
+            labelFontSize: this.labelFontSize,
+            visible: this.visible,
             createdAt: this.createdAt,
             updatedAt: this.updatedAt
         };
     }
+
+    /**
+     * 从 JSON 恢复
+     */
+    static fromJSON(data) {
+        const conn = new Connection(data.source.elementId, data.target.elementId);
+        conn.id = data.id;
+        conn.source = AnchorPoint.fromJSON(data.source);
+        conn.target = AnchorPoint.fromJSON(data.target);
+        conn.color = data.color;
+        conn.width = data.width;
+        conn.style = data.style;
+        conn.arrowType = data.arrowType;
+        conn.arrowSize = data.arrowSize;
+        conn.dashed = data.dashed;
+        conn.dashPattern = data.dashPattern;
+        conn.label = data.label || '';
+        conn.labelPosition = data.labelPosition || 0.5;
+        conn.labelBackgroundColor = data.labelBackgroundColor || '#FFFFFF';
+        conn.labelTextColor = data.labelTextColor || '#000000';
+        conn.labelFontSize = data.labelFontSize || 12;
+        conn.visible = data.visible !== false;
+        conn.createdAt = data.createdAt;
+        conn.updatedAt = data.updatedAt;
+        return conn;
+    }
 }
 
+// ========================================
+// 连接管理器
+// ========================================
 class ConnectionManager {
-    constructor(canvas) {
-        this.canvas = canvas;
-        this.connections = [];
-        this.selectedConnection = null;
-        this.isDrawing = false;
-        this.drawStart = null;
-        this.drawEnd = null;
-        this.tempLine = null;
-        
-        this.setupEventListeners();
+    constructor() {
+        this.connections = new Map();
+        this.tempConnection = null; // 正在创建的临时连线
     }
-    
+
     /**
-     * Setup connection drawing events
+     * 添加连接
      */
-    setupEventListeners() {
-        // Enhanced canvas mouse events for connection drawing
-        this.originalMouseDown = this.canvas.onMouseDown?.bind(this.canvas);
-        this.originalMouseMove = this.canvas.onMouseMove?.bind(this.canvas);
-        this.originalMouseUp = this.canvas.onMouseUp?.bind(this.canvas);
-        
-        // Override or wrap canvas events if needed
+    add(connection) {
+        this.connections.set(connection.id, connection);
+        console.log(`✅ 添加连接: ${connection.id}`);
     }
-    
+
     /**
-     * Start drawing a new connection
+     * 删除连接
      */
-    startDrawing(elementId) {
-        this.isDrawing = true;
-        this.drawStart = elementId;
-        this.tempLine = {
-            startElement: this.canvas.getElement(elementId),
-            endPos: null
-        };
-    }
-    
-    /**
-     * Update drawing position
-     */
-    updateDrawing(worldPos) {
-        if (this.isDrawing && this.tempLine) {
-            this.tempLine.endPos = worldPos;
+    remove(connectionId) {
+        const deleted = this.connections.delete(connectionId);
+        if (deleted) {
+            console.log(`✅ 删除连接: ${connectionId}`);
         }
+        return deleted;
     }
-    
+
     /**
-     * Complete drawing connection
+     * 获取连接
      */
-    completeDrawing(toElementId) {
-        if (!this.isDrawing || !this.drawStart) return;
-        
-        if (toElementId === this.drawStart) {
-            // Cannot connect to self
-            this.cancelDrawing();
-            return;
-        }
-        
-        // Create connection
-        const connectionId = `conn_${Date.now()}_${Math.random()}`;
-        const connection = new Connection(connectionId, this.drawStart, toElementId);
-        this.connections.push(connection);
-        
-        this.cancelDrawing();
+    get(connectionId) {
+        return this.connections.get(connectionId);
+    }
+
+    /**
+     * 创建连接
+     */
+    create(sourceElementId, targetElementId) {
+        const connection = new Connection(sourceElementId, targetElementId);
+        this.add(connection);
         return connection;
     }
-    
+
     /**
-     * Cancel drawing
+     * 删除元素的所有连接
      */
-    cancelDrawing() {
-        this.isDrawing = false;
-        this.drawStart = null;
-        this.tempLine = null;
+    removeElementConnections(elementId) {
+        const toRemove = [];
+        this.connections.forEach((conn, id) => {
+            if (conn.source.elementId === elementId || conn.target.elementId === elementId) {
+                toRemove.push(id);
+            }
+        });
+        toRemove.forEach(id => this.remove(id));
+        return toRemove.length;
     }
-    
+
     /**
-     * Add connection
+     * 获取元素的所有连接
      */
-    addConnection(fromElementId, toElementId, data = {}) {
-        const connectionId = `conn_${Date.now()}_${Math.random()}`;
-        const connection = new Connection(connectionId, fromElementId, toElementId, data);
-        this.connections.push(connection);
-        
-        // Trigger onConnectionCreate callback if available
-        if (this.canvas && this.canvas.onConnectionCreate) {
-            this.canvas.onConnectionCreate(connection);
+    getElementConnections(elementId) {
+        const result = [];
+        this.connections.forEach(conn => {
+            if (conn.source.elementId === elementId || conn.target.elementId === elementId) {
+                result.push(conn);
+            }
+        });
+        return result;
+    }
+
+    /**
+     * 检测点击的连接
+     */
+    hitTest(x, y, elements) {
+        for (const [id, conn] of this.connections) {
+            if (conn.hitTest(x, y, elements)) {
+                return conn;
+            }
         }
-        
-        return connection;
+        return null;
     }
-    
+
     /**
-     * Remove connection
+     * 渲染所有连接
      */
-    removeConnection(connectionId) {
-        this.connections = this.connections.filter(c => c.id !== connectionId);
-        if (this.selectedConnection?.id === connectionId) {
-            this.selectedConnection = null;
-        }
-    }
-    
-    /**
-     * Get connection by ID
-     */
-    getConnection(id) {
-        return this.connections.find(c => c.id === id);
-    }
-    
-    /**
-     * Update connection
-     */
-    updateConnection(id, data) {
-        const conn = this.getConnection(id);
-        if (conn) {
-            Object.assign(conn, data);
-            conn.updatedAt = new Date();
-        }
-    }
-    
-    /**
-     * Get connections for an element
-     */
-    getConnectionsForElement(elementId) {
-        return this.connections.filter(c => 
-            c.fromElementId === elementId || c.toElementId === elementId
-        );
-    }
-    
-    /**
-     * Check if point is near connection line
-     */
-    isPointNearConnection(x, y, connection, threshold = 5) {
-        const fromEl = this.canvas.getElement(connection.fromElementId);
-        const toEl = this.canvas.getElement(connection.toElementId);
-        
-        if (!fromEl || !toEl) return false;
-        
-        const x1 = fromEl.x + fromEl.width / 2;
-        const y1 = fromEl.y + fromEl.height / 2;
-        const x2 = toEl.x + toEl.width / 2;
-        const y2 = toEl.y + toEl.height / 2;
-        
-        // Calculate distance from point to line
-        const distance = this.distanceToLine(x, y, x1, y1, x2, y2);
-        return distance <= threshold;
-    }
-    
-    /**
-     * Calculate distance from point to line segment
-     */
-    distanceToLine(px, py, x1, y1, x2, y2) {
-        const dx = x2 - x1;
-        const dy = y2 - y1;
-        const t = Math.max(0, Math.min(1, ((px - x1) * dx + (py - y1) * dy) / (dx * dx + dy * dy)));
-        const closestX = x1 + t * dx;
-        const closestY = y1 + t * dy;
-        return Math.sqrt((px - closestX) ** 2 + (py - closestY) ** 2);
-    }
-    
-    /**
-     * Select connection
-     */
-    selectConnection(connectionId) {
-        this.selectedConnection = this.getConnection(connectionId);
-    }
-    
-    /**
-     * Deselect connection
-     */
-    deselectConnection() {
-        this.selectedConnection = null;
-    }
-    
-    /**
-     * Draw all connections
-     */
-    drawConnections(ctx, canvasZoom, canvasPanX, canvasPanY) {
-        ctx.save();
-        ctx.translate(canvasPanX, canvasPanY);
-        ctx.scale(canvasZoom, canvasZoom);
-        
-        // Draw all connections
-        for (const conn of this.connections) {
-            this.drawConnection(ctx, conn, conn === this.selectedConnection);
-        }
-        
-        // Draw temporary connection being drawn
-        if (this.isDrawing && this.tempLine) {
-            this.drawTemporaryConnection(ctx);
-        }
-        
-        ctx.restore();
-    }
-    
-    /**
-     * Draw a single connection
-     */
-    drawConnection(ctx, connection, isSelected) {
-        const fromEl = this.canvas.getElement(connection.fromElementId);
-        const toEl = this.canvas.getElement(connection.toElementId);
-        
-        if (!fromEl || !toEl) return;
-        
-        // Calculate connection points (center of elements)
-        const x1 = fromEl.x + fromEl.width / 2;
-        const y1 = fromEl.y + fromEl.height / 2;
-        const x2 = toEl.x + toEl.width / 2;
-        const y2 = toEl.y + toEl.height / 2;
-        
-        // Draw line
-        ctx.strokeStyle = isSelected ? '#2563eb' : connection.color;
-        ctx.lineWidth = connection.lineWidth;
-        ctx.globalAlpha = isSelected ? 1 : 0.7;
-        
-        // Apply line style
-        if (connection.style === 'dashed') {
-            ctx.setLineDash([5, 5]);
-        } else if (connection.style === 'dotted') {
-            ctx.setLineDash([2, 3]);
-        } else {
-            ctx.setLineDash([]);
-        }
-        
-        // Draw line with optional curvature
-        if (connection.curvature > 0) {
-            this.drawCurvedLine(ctx, x1, y1, x2, y2, connection.curvature);
-        } else {
-            ctx.beginPath();
-            ctx.moveTo(x1, y1);
-            ctx.lineTo(x2, y2);
-            ctx.stroke();
-        }
-        
-        ctx.setLineDash([]);
-        ctx.globalAlpha = 1;
-        
-        // Draw arrow
-        this.drawArrow(ctx, x1, y1, x2, y2, connection.arrowType, connection.color);
-        
-        // Draw label if exists
-        if (connection.label) {
-            this.drawLabel(ctx, x1, y1, x2, y2, connection.label, isSelected);
+    render(ctx, elements) {
+        this.connections.forEach(conn => {
+            conn.render(ctx, elements);
+        });
+
+        // 渲染临时连接(正在创建中)
+        if (this.tempConnection) {
+            this.tempConnection.render(ctx, elements);
         }
     }
-    
+
     /**
-     * Draw curved line using quadratic curve
+     * 开始创建临时连接
      */
-    drawCurvedLine(ctx, x1, y1, x2, y2, curvature) {
-        const controlX = (x1 + x2) / 2;
-        const controlY = (y1 + y2) / 2;
-        const offsetX = (y2 - y1) * curvature;
-        const offsetY = (x1 - x2) * curvature;
-        
-        ctx.beginPath();
-        ctx.moveTo(x1, y1);
-        ctx.quadraticCurveTo(
-            controlX + offsetX,
-            controlY + offsetY,
-            x2,
-            y2
-        );
-        ctx.stroke();
-    }
-    
-    /**
-     * Draw arrow head
-     */
-    drawArrow(ctx, x1, y1, x2, y2, arrowType, color) {
-        const arrowSize = 8;
-        const angle = Math.atan2(y2 - y1, x2 - x1);
-        
-        ctx.fillStyle = color;
-        ctx.globalAlpha = 0.8;
-        
-        if (arrowType === 'end' || arrowType === 'both') {
-            this.drawArrowHead(ctx, x2, y2, angle, arrowSize);
-        }
-        
-        if (arrowType === 'start' || arrowType === 'both') {
-            this.drawArrowHead(ctx, x1, y1, angle + Math.PI, arrowSize);
-        }
-        
-        ctx.globalAlpha = 1;
-    }
-    
-    /**
-     * Draw single arrow head
-     */
-    drawArrowHead(ctx, x, y, angle, size) {
-        ctx.beginPath();
-        ctx.moveTo(x, y);
-        ctx.lineTo(
-            x - size * Math.cos(angle - Math.PI / 6),
-            y - size * Math.sin(angle - Math.PI / 6)
-        );
-        ctx.lineTo(
-            x - size * Math.cos(angle + Math.PI / 6),
-            y - size * Math.sin(angle + Math.PI / 6)
-        );
-        ctx.closePath();
-        ctx.fill();
-    }
-    
-    /**
-     * Draw connection label
-     */
-    drawLabel(ctx, x1, y1, x2, y2, label, isSelected) {
-        const midX = (x1 + x2) / 2;
-        const midY = (y1 + y2) / 2;
-        
-        ctx.font = 'bold 12px Arial';
-        ctx.fillStyle = isSelected ? '#2563eb' : '#1f2937';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        
-        // Draw background
-        const metrics = ctx.measureText(label);
-        const padding = 4;
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
-        ctx.fillRect(
-            midX - metrics.width / 2 - padding,
-            midY - 8,
-            metrics.width + padding * 2,
-            16
-        );
-        
-        // Draw text
-        ctx.fillStyle = isSelected ? '#2563eb' : '#1f2937';
-        ctx.fillText(label, midX, midY);
-        ctx.textAlign = 'left';
-    }
-    
-    /**
-     * Draw temporary connection being drawn
-     */
-    drawTemporaryConnection(ctx) {
-        if (!this.tempLine || !this.tempLine.startElement) return;
-        
-        const startEl = this.tempLine.startElement;
-        const x1 = startEl.x + startEl.width / 2;
-        const y1 = startEl.y + startEl.height / 2;
-        const x2 = this.tempLine.endPos?.x || x1;
-        const y2 = this.tempLine.endPos?.y || y1;
-        
-        ctx.strokeStyle = '#60a5fa';
-        ctx.lineWidth = 2;
-        ctx.setLineDash([5, 5]);
-        ctx.globalAlpha = 0.7;
-        
-        ctx.beginPath();
-        ctx.moveTo(x1, y1);
-        ctx.lineTo(x2, y2);
-        ctx.stroke();
-        
-        ctx.setLineDash([]);
-        ctx.globalAlpha = 1;
-        
-        // Draw arrow
-        const angle = Math.atan2(y2 - y1, x2 - x1);
-        this.drawArrowHead(ctx, x2, y2, angle, 6);
-    }
-    
-    /**
-     * Export connections
-     */
-    export() {
-        return this.connections.map(c => c.toJSON());
-    }
-    
-    /**
-     * Import connections
-     */
-    import(data) {
-        this.connections = data.map(c => new Connection(
-            c.id,
-            c.fromElementId,
-            c.toElementId,
-            c
-        ));
-    }
-    
-    /**
-     * Get statistics
-     */
-    getStats() {
-        return {
-            totalConnections: this.connections.length,
-            connectionsByStyle: {
-                solid: this.connections.filter(c => c.style === 'solid').length,
-                dashed: this.connections.filter(c => c.style === 'dashed').length,
-                dotted: this.connections.filter(c => c.style === 'dotted').length
-            },
-            connectionsByArrow: {
-                none: this.connections.filter(c => c.arrowType === 'none').length,
-                start: this.connections.filter(c => c.arrowType === 'start').length,
-                end: this.connections.filter(c => c.arrowType === 'end').length,
-                both: this.connections.filter(c => c.arrowType === 'both').length
+    startTempConnection(sourceElementId, mouseX, mouseY) {
+        this.tempConnection = {
+            sourceId: sourceElementId,
+            endX: mouseX,
+            endY: mouseY,
+            render: (ctx, elements) => {
+                const sourceElement = elements.get(sourceElementId);
+                if (!sourceElement) return;
+
+                const start = {
+                    x: sourceElement.x + sourceElement.width / 2,
+                    y: sourceElement.y + sourceElement.height / 2
+                };
+
+                ctx.save();
+                ctx.strokeStyle = '#9E9E9E';
+                ctx.lineWidth = 2;
+                ctx.setLineDash([5, 5]);
+                ctx.beginPath();
+                ctx.moveTo(start.x, start.y);
+                ctx.lineTo(this.tempConnection.endX, this.tempConnection.endY);
+                ctx.stroke();
+                ctx.setLineDash([]);
+                ctx.restore();
             }
         };
     }
+
+    /**
+     * 更新临时连接
+     */
+    updateTempConnection(mouseX, mouseY) {
+        if (this.tempConnection) {
+            this.tempConnection.endX = mouseX;
+            this.tempConnection.endY = mouseY;
+        }
+    }
+
+    /**
+     * 完成临时连接
+     */
+    finishTempConnection(targetElementId) {
+        if (this.tempConnection && targetElementId) {
+            const connection = this.create(this.tempConnection.sourceId, targetElementId);
+            this.tempConnection = null;
+            return connection;
+        }
+        this.tempConnection = null;
+        return null;
+    }
+
+    /**
+     * 取消临时连接
+     */
+    cancelTempConnection() {
+        this.tempConnection = null;
+    }
+
+    /**
+     * 清空所有连接
+     */
+    clear() {
+        this.connections.clear();
+        this.tempConnection = null;
+    }
+
+    /**
+     * 导出所有连接
+     */
+    exportToJSON() {
+        const data = [];
+        this.connections.forEach(conn => {
+            data.push(conn.toJSON());
+        });
+        return data;
+    }
+
+    /**
+     * 从 JSON 导入连接
+     */
+    importFromJSON(data) {
+        this.clear();
+        data.forEach(connData => {
+            const conn = Connection.fromJSON(connData);
+            this.add(conn);
+        });
+    }
 }
 
-// Export
-window.Connection = Connection;
-window.ConnectionManager = ConnectionManager;
+// 导出
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = {
+        AnchorPoint,
+        Connection,
+        ConnectionManager
+    };
+}
+
+console.log('✅ Connection System 加载完成');

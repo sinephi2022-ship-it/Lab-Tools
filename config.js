@@ -1,546 +1,721 @@
 /**
- * LabMate Pro - Configuration & Initialization
- * Firebase Setup, Global Utils, i18n
+ * LabMate Pro - Configuration & Internationalization
+ * Firebase配置 + 多语言支持(中/英/日)
+ * 
+ * @author Sine chen
+ * @version 2.0.0
+ * @date 2025-12-07
  */
 
-// ============================================
-// FIREBASE CONFIGURATION
-// ============================================
+// ========================================
+// Firebase 配置
+// ========================================
 const firebaseConfig = {
     apiKey: "AIzaSyDcOJyJEpVsc-asPeYvqaKnZF0oa7J3xfI",
     authDomain: "labtool-5eb5e.firebaseapp.com",
     projectId: "labtool-5eb5e",
     storageBucket: "labtool-5eb5e.firebasestorage.app",
-    messagingSenderId: "686046008242",
-    appId: "1:686046008242:web:b5516ebf4eedea5afa4aab",
-    measurementId: "G-86F1TSWE56"
+    messagingSenderId: "439026642074",
+    appId: "1:439026642074:web:d91c42764c1b2a8cb8a40c"
 };
 
-// Initialize Firebase with retry logic
-(async function initFirebase() {
-    let retries = 0;
-    const maxRetries = 50;
-    
-    while (typeof firebase === 'undefined' && retries < maxRetries) {
-        await new Promise(r => setTimeout(r, 100));
-        retries++;
-    }
-    
-    if (typeof firebase === 'undefined') {
-        console.error('❌ Firebase failed to load');
-        return;
-    }
-    
-    try {
-        if (!firebase.apps.length) {
-            firebase.initializeApp(firebaseConfig);
-        }
-        
-        window.db = firebase.firestore();
-        window.auth = firebase.auth();
-        
-        console.log('✅ Firebase initialized');
-    } catch (error) {
-        console.error('Firebase init error:', error);
-    }
-})();
+// 初始化 Firebase
+try {
+    firebase.initializeApp(firebaseConfig);
+    window.auth = firebase.auth();
+    window.db = firebase.firestore();
+    window.storage = firebase.storage();
+    console.log('✅ Firebase 初始化成功');
+} catch (error) {
+    console.error('❌ Firebase 初始化失败:', error);
+}
 
-// ============================================
-// MULTILINGUAL DICTIONARY (i18n)
-// ============================================
-window.DICT = {
+// ========================================
+// 国际化字典 (中文/英文/日文)
+// ========================================
+window.I18N = {
     zh: {
-        // Auth
-        welcome: "LabMate 实验室助手",
-        login: "登录",
-        signup: "注册",
-        email: "邮箱",
-        password: "密码",
-        name: "昵称",
+        // 认证相关
+        login: '登录',
+        signup: '注册',
+        logout: '退出',
+        email: '邮箱',
+        password: '密码',
+        name: '姓名',
+        displayName: '昵称',
+        avatar: '头像',
+        language: '语言',
         
-        // Lobby
-        myLabs: "我的实验",
-        publicLabs: "公开大厅",
-        collection: "个人收藏",
-        friends: "好友列表",
-        createLab: "创建新实验",
-        labName: "实验名称",
-        description: "描述",
-        visibility: "可见性",
-        isPublic: "公开",
-        isPrivate: "私密",
-        optional: "可选",
-        password: "密码",
-        members: "成员",
-        refresh: "刷新",
-        noLabs: "还没有实验，创建一个吧！",
-        passOpt: "访问密码 (可选)",
-        create: "立即创建",
-        cancel: "取消",
-        confirmDel: "确认删除此实验？",
-        deleted: "已删除",
-        added: "已添加",
-        sent: "已发送",
-        invite: "邀请",
-        inviteMember: "邀请成员",
-        role: "角色",
-        editor: "编辑者",
-        viewer: "查看者",
-        favorites: "收藏夹",
+        // 实验室相关
+        myLabs: '我的实验室',
+        publicLabs: '公开实验室',
+        createLab: '创建实验室',
+        labName: '实验室名称',
+        labPassword: '实验室密码',
+        isPublic: '公开',
+        isPrivate: '私密',
+        enterLab: '进入实验室',
+        deleteLab: '删除实验室',
+        leaveLab: '离开实验室',
+        members: '成员',
+        owner: '所有者',
         
-        // Chat
-        chat: "消息",
-        typeMsg: "输入消息...",
-        send: "发送",
-        reaction: "表情",
+        // 画布相关
+        canvas: '画布',
+        elements: '元素',
+        addElement: '添加元素',
+        deleteElement: '删除元素',
+        moveElement: '移动元素',
+        resizeElement: '调整大小',
         
-        // Lab
-        editProfile: "编辑资料",
-        save: "保存修改",
-        logout: "退出登录",
+        // 元素类型
+        note: '便签',
+        timer: '计时器',
+        protocol: '实验协议',
+        text: '文本框',
+        file: '文件',
         
-        // Lab
-        upload: "上传文件",
-        share: "分享",
-        delete: "删除",
-        copy: "复制",
+        // 连接线
+        connection: '连接线',
+        addConnection: '添加连接',
+        deleteConnection: '删除连接',
         
-        // Elements
-        timer: "计时器",
-        note: "便签",
-        protocol: "流程表",
-        text: "标题",
-        line: "连线",
-        tools: "工具栏",
-        editing: "编辑中",
-        content: "内容",
-        color: "颜色",
-        elements: "元素数",
-        selected: "已选中",
-        zoomFit: "适应视图",
-        gridSnap: "网格对齐",
-        duplicate: "复制",
-        align: "对齐",
-        canvasControl: "画布控制",
-        selectTools: "选择工具",
-        addElement: "添加元素",
-        connections: "连接线",
-        drawConnection: "绘制连接",
-        drawingConnection: "正在绘制",
-        noConnections: "暂无连接线",
-        selectElement: "请先选择要连接的元素",
+        // 聊天和社交
+        chat: '聊天',
+        friends: '好友',
+        addFriend: '添加好友',
+        removeFriend: '删除好友',
+        sendMessage: '发送消息',
+        messages: '消息',
         
-        // States
-        setPublic: "设为公开",
-        setPrivate: "设为私有",
-        isPublic: "公开",
-        isPrivate: "私有",
+        // 仓库和收藏
+        collection: '收藏',
+        favorites: '收藏夹',
+        addToFavorites: '添加到收藏',
+        removeFromFavorites: '取消收藏',
         
-        // Protocol
-        step: "步骤",
-        start: "开始",
-        pause: "暂停",
-        reset: "重置",
+        // 通用操作
+        save: '保存',
+        cancel: '取消',
+        confirm: '确认',
+        delete: '删除',
+        edit: '编辑',
+        copy: '复制',
+        paste: '粘贴',
+        cut: '剪切',
+        undo: '撤销',
+        redo: '重做',
         
-        // General
-        loading: "加载中...",
-        noData: "暂无数据",
-        enterPass: "请输入实验室密码",
-        wrongPass: "密码错误",
+        // 提示信息
+        loading: '加载中...',
+        saving: '保存中...',
+        saved: '已保存',
+        error: '错误',
+        success: '成功',
+        warning: '警告',
+        info: '提示',
         
-        // File types
-        image: "图片",
-        file: "文件",
-        voice: "语音",
+        // 错误信息
+        loginFailed: '登录失败',
+        signupFailed: '注册失败',
+        createLabFailed: '创建实验室失败',
+        deleteLabFailed: '删除实验室失败',
+        saveFailed: '保存失败',
         
-        // Actions
-        exportReport: "导出报告",
-        dropHere: "拖拽文件到此处",
-        confirmDel: "确定要删除吗？",
-        deleted: "已删除",
-        sent: "已发送",
-        saved: "已保存",
-        added: "已添加",
+        // 其他
+        welcome: '欢迎使用 LabMate Pro',
+        noLabs: '暂无实验室',
+        noMessages: '暂无消息',
+        noFriends: '暂无好友',
+        search: '搜索',
+        filter: '筛选',
+        sort: '排序',
+        settings: '设置',
+        help: '帮助',
+        about: '关于',
+        version: '版本',
         
-        // Settings
-        language: "语言",
-        nickname: "昵称",
-        avatar: "头像",
-        changeAvatar: "更改头像",
-        selectShareTarget: "选择分享目标",
+        // 时间相关
+        year: '年',
+        month: '月',
+        day: '日',
+        hour: '小时',
+        minute: '分钟',
+        second: '秒',
         
-        // New lobby features
-        join: "加入",
-        joinLab: "加入实验室",
-        inviteCode: "邀请码",
-        copyCode: "复制邀请码",
-        labNeedsPassword: "此实验室需要密码",
-        password: "密码",
-        download: "下载",
-        saveToCollection: "保存到收藏",
-        noPublicLabs: "暂无公开实验室",
-        noFavorites: "暂无收藏",
-        noFriends: "还没有好友",
-        message: "消息",
-        preview: "预览",
-        invalidCode: "邀请码无效",
-        codeNotFound: "邀请码不存在",
-        passwordRequired: "需要输入密码",
-        incorrectPassword: "密码不正确",
-        joinedSuccessfully: "加入成功",
-        copied: "已复制到剪贴板",
-        downloaded: "已下载",
-        addedToCollection: "已添加到收藏",
-        sharedToChat: "已分享到聊天"
+        // 文件相关
+        upload: '上传',
+        download: '下载',
+        preview: '预览',
+        fileName: '文件名',
+        fileSize: '文件大小',
+        fileType: '文件类型',
+        
+        // 权限相关
+        permission: '权限',
+        admin: '管理员',
+        member: '成员',
+        viewer: '查看者',
+        editor: '编辑者',
+        
+        // Canvas 操作
+        zoomIn: '放大',
+        zoomOut: '缩小',
+        resetZoom: '重置缩放',
+        fitToScreen: '适应屏幕',
+        pan: '平移',
+        select: '选择',
+        multiSelect: '多选',
+        
+        // 协议相关
+        step: '步骤',
+        addStep: '添加步骤',
+        deleteStep: '删除步骤',
+        complete: '完成',
+        incomplete: '未完成',
+        
+        // 计时器相关
+        start: '开始',
+        pause: '暂停',
+        reset: '重置',
+        resume: '继续',
+        duration: '时长',
+        
+        // 导出相关
+        export: '导出',
+        exportPDF: '导出为 PDF',
+        exportImage: '导出为图片',
+        exportJSON: '导出为 JSON',
+        
+        // 邀请相关
+        invite: '邀请',
+        inviteCode: '邀请码',
+        joinLab: '加入实验室',
+        copyCode: '复制邀请码',
+        generateCode: '生成邀请码',
+        
+        // 好友系统
+        findFriends: '查找好友',
+        friendRequests: '好友请求',
+        acceptRequest: '接受',
+        rejectRequest: '拒绝',
+        myFriends: '我的好友',
+        noFriends: '暂无好友',
+        noPublicLabs: '暂无公开实验室',
+        noFavorites: '暂无收藏',
+        
+        // 刷新
+        refresh: '刷新',
+        join: '加入',
     },
     
     en: {
-        welcome: "LabMate Assistant",
-        login: "Login",
-        signup: "Sign Up",
-        email: "Email",
-        password: "Password",
-        name: "Name",
-        myLabs: "My Labs",
-        publicLabs: "Public Hall",
-        collection: "Collection",
-        friends: "Friends",
-        createLab: "Create Lab",
-        labName: "Lab Name",
-        description: "Description",
-        visibility: "Visibility",
-        isPublic: "Public",
-        isPrivate: "Private",
-        optional: "Optional",
-        password: "Password",
-        members: "Members",
-        refresh: "Refresh",
-        noLabs: "No labs yet, create one!",
-        passOpt: "Password (Optional)",
-        create: "Create",
-        cancel: "Cancel",
-        confirmDel: "Confirm delete this lab?",
-        deleted: "Deleted",
-        added: "Added",
-        sent: "Sent",
-        invite: "Invite",
-        inviteMember: "Invite Member",
-        role: "Role",
-        editor: "Editor",
-        viewer: "Viewer",
-        favorites: "Favorites",
-        chat: "Chat",
-        typeMsg: "Type message...",
-        send: "Send",
-        reaction: "Emoji",
-        editProfile: "Edit Profile",
-        save: "Save",
-        logout: "Logout",
-        upload: "Upload",
-        share: "Share",
-        delete: "Delete",
-        copy: "Copy",
-        timer: "Timer",
-        note: "Note",
-        protocol: "Protocol",
-        text: "Text",
-        line: "Line",
-        tools: "Tools",
-        editing: "Editing",
-        content: "Content",
-        color: "Color",
-        elements: "Elements",
-        selected: "Selected",
-        zoomFit: "Zoom to Fit",
-        gridSnap: "Grid Snap",
-        duplicate: "Duplicate",
-        align: "Align",
-        canvasControl: "Canvas Control",
-        selectTools: "Selection Tools",
-        addElement: "Add Element",
-        connections: "Connections",
-        drawConnection: "Draw Connection",
-        drawingConnection: "Drawing...",
-        noConnections: "No Connections",
-        selectElement: "Please select elements to connect",
-        setPublic: "Make Public",
-        setPrivate: "Make Private",
-        isPublic: "Public",
-        isPrivate: "Private",
-        step: "Step",
-        start: "Start",
-        pause: "Pause",
-        reset: "Reset",
-        loading: "Loading...",
-        noData: "No Data",
-        enterPass: "Enter Password",
-        wrongPass: "Wrong Password",
-        image: "Image",
-        file: "File",
-        voice: "Voice",
-        exportReport: "Export Report",
-        dropHere: "Drop files here",
-        confirmDel: "Are you sure?",
-        deleted: "Deleted",
-        sent: "Sent",
-        saved: "Saved",
-        added: "Added",
-        language: "Language",
-        nickname: "Nickname",
-        avatar: "Avatar",
-        changeAvatar: "Change Avatar",
-        selectShareTarget: "Select Share Target",
+        // Authentication
+        login: 'Login',
+        signup: 'Sign Up',
+        logout: 'Logout',
+        email: 'Email',
+        password: 'Password',
+        name: 'Name',
+        displayName: 'Display Name',
+        avatar: 'Avatar',
+        language: 'Language',
         
-        // New lobby features
-        join: "Join",
-        joinLab: "Join Lab",
-        inviteCode: "Invite Code",
-        copyCode: "Copy Invite Code",
-        labNeedsPassword: "This lab requires a password",
-        password: "Password",
-        download: "Download",
-        saveToCollection: "Save to Collection",
-        noPublicLabs: "No public labs available",
-        noFavorites: "No favorites yet",
-        noFriends: "No friends yet",
-        message: "Message",
-        preview: "Preview",
-        invalidCode: "Invalid invite code",
-        codeNotFound: "Invite code not found",
-        passwordRequired: "Password required",
-        incorrectPassword: "Incorrect password",
-        joinedSuccessfully: "Joined successfully",
-        copied: "Copied to clipboard",
-        downloaded: "Downloaded",
-        addedToCollection: "Added to collection",
-        sharedToChat: "Shared to chat"
+        // Lab related
+        myLabs: 'My Labs',
+        publicLabs: 'Public Labs',
+        createLab: 'Create Lab',
+        labName: 'Lab Name',
+        labPassword: 'Lab Password',
+        isPublic: 'Public',
+        isPrivate: 'Private',
+        enterLab: 'Enter Lab',
+        deleteLab: 'Delete Lab',
+        leaveLab: 'Leave Lab',
+        members: 'Members',
+        owner: 'Owner',
+        
+        // Canvas related
+        canvas: 'Canvas',
+        elements: 'Elements',
+        addElement: 'Add Element',
+        deleteElement: 'Delete Element',
+        moveElement: 'Move Element',
+        resizeElement: 'Resize',
+        
+        // Element types
+        note: 'Note',
+        timer: 'Timer',
+        protocol: 'Protocol',
+        text: 'Text',
+        file: 'File',
+        
+        // Connections
+        connection: 'Connection',
+        addConnection: 'Add Connection',
+        deleteConnection: 'Delete Connection',
+        
+        // Chat and Social
+        chat: 'Chat',
+        friends: 'Friends',
+        addFriend: 'Add Friend',
+        removeFriend: 'Remove Friend',
+        sendMessage: 'Send Message',
+        messages: 'Messages',
+        
+        // Collection
+        collection: 'Collection',
+        favorites: 'Favorites',
+        addToFavorites: 'Add to Favorites',
+        removeFromFavorites: 'Remove from Favorites',
+        
+        // Common actions
+        save: 'Save',
+        cancel: 'Cancel',
+        confirm: 'Confirm',
+        delete: 'Delete',
+        edit: 'Edit',
+        copy: 'Copy',
+        paste: 'Paste',
+        cut: 'Cut',
+        undo: 'Undo',
+        redo: 'Redo',
+        
+        // Notifications
+        loading: 'Loading...',
+        saving: 'Saving...',
+        saved: 'Saved',
+        error: 'Error',
+        success: 'Success',
+        warning: 'Warning',
+        info: 'Info',
+        
+        // Error messages
+        loginFailed: 'Login failed',
+        signupFailed: 'Sign up failed',
+        createLabFailed: 'Create lab failed',
+        deleteLabFailed: 'Delete lab failed',
+        saveFailed: 'Save failed',
+        
+        // Others
+        welcome: 'Welcome to LabMate Pro',
+        noLabs: 'No labs yet',
+        noMessages: 'No messages',
+        noFriends: 'No friends',
+        search: 'Search',
+        filter: 'Filter',
+        sort: 'Sort',
+        settings: 'Settings',
+        help: 'Help',
+        about: 'About',
+        version: 'Version',
+        
+        // Time
+        year: 'Year',
+        month: 'Month',
+        day: 'Day',
+        hour: 'Hour',
+        minute: 'Minute',
+        second: 'Second',
+        
+        // File
+        upload: 'Upload',
+        download: 'Download',
+        preview: 'Preview',
+        fileName: 'File Name',
+        fileSize: 'File Size',
+        fileType: 'File Type',
+        
+        // Permissions
+        permission: 'Permission',
+        admin: 'Admin',
+        member: 'Member',
+        viewer: 'Viewer',
+        editor: 'Editor',
+        
+        // Canvas operations
+        zoomIn: 'Zoom In',
+        zoomOut: 'Zoom Out',
+        resetZoom: 'Reset Zoom',
+        fitToScreen: 'Fit to Screen',
+        pan: 'Pan',
+        select: 'Select',
+        multiSelect: 'Multi-Select',
+        
+        // Protocol
+        step: 'Step',
+        addStep: 'Add Step',
+        deleteStep: 'Delete Step',
+        complete: 'Complete',
+        incomplete: 'Incomplete',
+        
+        // Timer
+        start: 'Start',
+        pause: 'Pause',
+        reset: 'Reset',
+        resume: 'Resume',
+        duration: 'Duration',
+        
+        // Export
+        export: 'Export',
+        exportPDF: 'Export as PDF',
+        exportImage: 'Export as Image',
+        exportJSON: 'Export as JSON',
+        
+        // Invite
+        invite: 'Invite',
+        inviteCode: 'Invite Code',
+        joinLab: 'Join Lab',
+        copyCode: 'Copy Code',
+        generateCode: 'Generate Code',
+        
+        // Friend system
+        findFriends: 'Find Friends',
+        friendRequests: 'Friend Requests',
+        acceptRequest: 'Accept',
+        rejectRequest: 'Reject',
+        myFriends: 'My Friends',
+        noFriends: 'No friends yet',
+        noPublicLabs: 'No public labs',
+        noFavorites: 'No favorites',
+        
+        // Refresh
+        refresh: 'Refresh',
+        join: 'Join',
     },
     
     ja: {
-        welcome: "LabMate ラボ助手",
-        login: "ログイン",
-        signup: "登録",
-        email: "メール",
-        password: "パスワード",
-        name: "名前",
-        myLabs: "マイラボ",
-        publicLabs: "公開広場",
-        collection: "コレクション",
-        friends: "友達",
-        createLab: "ラボ作成",
-        labName: "ラボ名",
-        description: "説明",
-        visibility: "表示",
-        isPublic: "公開",
-        isPrivate: "非公開",
-        optional: "オプション",
-        password: "パスワード",
-        members: "メンバー",
-        refresh: "更新",
-        noLabs: "ラボはまだありません、作成してください！",
-        passOpt: "パスワード (任意)",
-        create: "作成",
-        cancel: "キャンセル",
-        confirmDel: "このラボを削除しますか？",
-        deleted: "削除されました",
-        added: "追加されました",
-        sent: "送信されました",
-        invite: "招待",
-        inviteMember: "メンバーを招待",
-        role: "ロール",
-        editor: "編集者",
-        viewer: "閲覧者",
-        favorites: "お気に入り",
-        chat: "チャット",
-        typeMsg: "入力...",
-        send: "送信",
-        reaction: "絵文字",
-        editProfile: "プロフィール編集",
-        save: "保存",
-        logout: "ログアウト",
-        upload: "アップロード",
-        share: "共有",
-        delete: "削除",
-        copy: "コピー",
-        timer: "タイマー",
-        note: "メモ",
-        protocol: "手順書",
-        text: "見出し",
-        line: "接続線",
-        tools: "ツール",
-        editing: "編集中",
-        content: "内容",
-        color: "色",
-        elements: "要素数",
-        selected: "選択中",
-        zoomFit: "フィット表示",
-        gridSnap: "グリッドスナップ",
-        duplicate: "複製",
-        align: "配置",
-        canvasControl: "キャンバスコントロール",
-        selectTools: "選択ツール",
-        addElement: "要素を追加",
-        connections: "接続線",
-        drawConnection: "接続を描画",
-        drawingConnection: "描画中",
-        noConnections: "接続線なし",
-        selectElement: "接続する要素を選択してください",
-        setPublic: "公開する",
-        setPrivate: "非公開にする",
-        isPublic: "公開",
-        isPrivate: "非公開",
-        step: "手順",
-        start: "開始",
-        pause: "一時停止",
-        reset: "リセット",
-        loading: "読込中...",
-        noData: "データなし",
-        enterPass: "パスワードを入力",
-        wrongPass: "パスワードが違います",
-        image: "画像",
-        file: "ファイル",
-        voice: "音声",
-        exportReport: "レポート出力",
-        dropHere: "ここにドロップ",
-        confirmDel: "削除しますか？",
-        deleted: "削除しました",
-        sent: "送信しました",
-        saved: "保存しました",
-        added: "追加しました",
-        language: "言語",
-        nickname: "ニックネーム",
-        avatar: "アバター",
-        changeAvatar: "アバター変更",
-        selectShareTarget: "共有先を選択",
+        // 認証関連
+        login: 'ログイン',
+        signup: 'サインアップ',
+        logout: 'ログアウト',
+        email: 'メール',
+        password: 'パスワード',
+        name: '名前',
+        displayName: '表示名',
+        avatar: 'アバター',
+        language: '言語',
         
-        // New lobby features
-        join: "参加",
-        joinLab: "ラボに参加",
-        inviteCode: "招待コード",
-        copyCode: "招待コードをコピー",
-        labNeedsPassword: "このラボはパスワードが必要です",
-        password: "パスワード",
-        download: "ダウンロード",
-        saveToCollection: "コレクションに保存",
-        noPublicLabs: "公開ラボがありません",
-        noFavorites: "お気に入りがありません",
-        noFriends: "友達がいません",
-        message: "メッセージ",
-        preview: "プレビュー",
-        invalidCode: "無効な招待コード",
-        codeNotFound: "招待コードが見つかりません",
-        passwordRequired: "パスワードが必要です",
-        incorrectPassword: "パスワードが間違っています",
-        joinedSuccessfully: "参加しました",
-        copied: "クリップボードにコピーしました",
-        downloaded: "ダウンロードしました",
-        addedToCollection: "コレクションに追加しました",
-        sharedToChat: "チャットで共有しました"
+        // ラボ関連
+        myLabs: 'マイラボ',
+        publicLabs: '公開ラボ',
+        createLab: 'ラボを作成',
+        labName: 'ラボ名',
+        labPassword: 'ラボパスワード',
+        isPublic: '公開',
+        isPrivate: '非公開',
+        enterLab: 'ラボに入る',
+        deleteLab: 'ラボを削除',
+        leaveLab: 'ラボから退出',
+        members: 'メンバー',
+        owner: 'オーナー',
+        
+        // キャンバス関連
+        canvas: 'キャンバス',
+        elements: '要素',
+        addElement: '要素を追加',
+        deleteElement: '要素を削除',
+        moveElement: '要素を移動',
+        resizeElement: 'サイズ変更',
+        
+        // 要素タイプ
+        note: 'ノート',
+        timer: 'タイマー',
+        protocol: 'プロトコル',
+        text: 'テキスト',
+        file: 'ファイル',
+        
+        // 接続
+        connection: '接続',
+        addConnection: '接続を追加',
+        deleteConnection: '接続を削除',
+        
+        // チャットとソーシャル
+        chat: 'チャット',
+        friends: '友達',
+        addFriend: '友達を追加',
+        removeFriend: '友達を削除',
+        sendMessage: 'メッセージを送信',
+        messages: 'メッセージ',
+        
+        // コレクション
+        collection: 'コレクション',
+        favorites: 'お気に入り',
+        addToFavorites: 'お気に入りに追加',
+        removeFromFavorites: 'お気に入りから削除',
+        
+        // 共通アクション
+        save: '保存',
+        cancel: 'キャンセル',
+        confirm: '確認',
+        delete: '削除',
+        edit: '編集',
+        copy: 'コピー',
+        paste: '貼り付け',
+        cut: '切り取り',
+        undo: '元に戻す',
+        redo: 'やり直す',
+        
+        // 通知
+        loading: '読み込み中...',
+        saving: '保存中...',
+        saved: '保存しました',
+        error: 'エラー',
+        success: '成功',
+        warning: '警告',
+        info: '情報',
+        
+        // エラーメッセージ
+        loginFailed: 'ログインに失敗しました',
+        signupFailed: 'サインアップに失敗しました',
+        createLabFailed: 'ラボの作成に失敗しました',
+        deleteLabFailed: 'ラボの削除に失敗しました',
+        saveFailed: '保存に失敗しました',
+        
+        // その他
+        welcome: 'LabMate Proへようこそ',
+        noLabs: 'ラボがありません',
+        noMessages: 'メッセージがありません',
+        noFriends: '友達がいません',
+        search: '検索',
+        filter: 'フィルター',
+        sort: '並び替え',
+        settings: '設定',
+        help: 'ヘルプ',
+        about: 'について',
+        version: 'バージョン',
+        
+        // 時間
+        year: '年',
+        month: '月',
+        day: '日',
+        hour: '時間',
+        minute: '分',
+        second: '秒',
+        
+        // ファイル
+        upload: 'アップロード',
+        download: 'ダウンロード',
+        preview: 'プレビュー',
+        fileName: 'ファイル名',
+        fileSize: 'ファイルサイズ',
+        fileType: 'ファイルタイプ',
+        
+        // 権限
+        permission: '権限',
+        admin: '管理者',
+        member: 'メンバー',
+        viewer: '閲覧者',
+        editor: '編集者',
+        
+        // キャンバス操作
+        zoomIn: 'ズームイン',
+        zoomOut: 'ズームアウト',
+        resetZoom: 'ズームリセット',
+        fitToScreen: '画面に合わせる',
+        pan: 'パン',
+        select: '選択',
+        multiSelect: '複数選択',
+        
+        // プロトコル
+        step: 'ステップ',
+        addStep: 'ステップを追加',
+        deleteStep: 'ステップを削除',
+        complete: '完了',
+        incomplete: '未完了',
+        
+        // タイマー
+        start: '開始',
+        pause: '一時停止',
+        reset: 'リセット',
+        resume: '再開',
+        duration: '期間',
+        
+        // エクスポート
+        export: 'エクスポート',
+        exportPDF: 'PDFとしてエクスポート',
+        exportImage: '画像としてエクスポート',
+        exportJSON: 'JSONとしてエクスポート',
+        
+        // 招待
+        invite: '招待',
+        inviteCode: '招待コード',
+        joinLab: 'ラボに参加',
+        copyCode: 'コードをコピー',
+        generateCode: 'コードを生成',
+        
+        // 友達システム
+        findFriends: '友達を探す',
+        friendRequests: '友達リクエスト',
+        acceptRequest: '承認',
+        rejectRequest: '拒否',
+        myFriends: 'マイフレンド',
+        noFriends: '友達がいません',
+        noPublicLabs: '公開ラボがありません',
+        noFavorites: 'お気に入りがありません',
+        
+        // 更新
+        refresh: '更新',
+        join: '参加',
     }
 };
 
-// ============================================
-// GLOBAL UTILITIES
-// ============================================
+// ========================================
+// 工具函数
+// ========================================
 window.Utils = {
-    // Generate unique IDs
-    generateId: () => {
-        return Date.now().toString(36) + Math.random().toString(36).substring(2, 7);
+    /**
+     * 生成唯一 ID
+     */
+    generateId() {
+        return Date.now().toString(36) + Math.random().toString(36).substr(2);
     },
     
-    // Compress image before upload
-    compressImage: (file, quality = 0.7, maxWidth = 800) => {
-        return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.readAsDataURL(file);
-            reader.onload = (e) => {
-                const img = new Image();
-                img.src = e.target.result;
-                img.onload = () => {
-                    const canvas = document.createElement('canvas');
-                    const ctx = canvas.getContext('2d');
-                    const scale = Math.min(1, maxWidth / Math.max(img.width, img.height));
-                    canvas.width = img.width * scale;
-                    canvas.height = img.height * scale;
-                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-                    resolve(canvas.toDataURL('image/jpeg', quality));
-                };
-                img.onerror = () => reject(new Error('Image load failed'));
-            };
-            reader.onerror = () => reject(new Error('File read failed'));
-        });
+    /**
+     * 生成6位随机邀请码
+     */
+    generateCode() {
+        return Math.random().toString(36).substring(2, 8).toUpperCase();
     },
     
-    // Convert file to Base64
-    fileToB64: (file) => {
-        return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.readAsDataURL(file);
-            reader.onload = () => resolve(reader.result);
-            reader.onerror = () => reject(new Error('File read failed'));
-        });
+    /**
+     * 格式化日期
+     */
+    formatDate(timestamp) {
+        if (!timestamp) return '';
+        const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+        const now = new Date();
+        const diff = now - date;
+        
+        // 小于1分钟
+        if (diff < 60000) return '刚刚';
+        // 小于1小时
+        if (diff < 3600000) return `${Math.floor(diff / 60000)} 分钟前`;
+        // 小于1天
+        if (diff < 86400000) return `${Math.floor(diff / 3600000)} 小时前`;
+        // 小于7天
+        if (diff < 604800000) return `${Math.floor(diff / 86400000)} 天前`;
+        
+        // 否则显示完整日期
+        return date.toLocaleDateString('zh-CN');
     },
     
-    // Format seconds to MM:SS
-    formatTime: (seconds) => {
-        if (seconds < 0) seconds = 0;
-        const m = Math.floor(seconds / 60).toString().padStart(2, '0');
-        const s = (seconds % 60).toString().padStart(2, '0');
-        return `${m}:${s}`;
+    /**
+     * 格式化文件大小
+     */
+    formatFileSize(bytes) {
+        if (bytes === 0) return '0 B';
+        const k = 1024;
+        const sizes = ['B', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
     },
     
-    // Debounce function
-    debounce: (fn, wait) => {
+    /**
+     * 防抖函数
+     */
+    debounce(func, wait) {
         let timeout;
-        return (...args) => {
+        return function executedFunction(...args) {
+            const later = () => {
+                clearTimeout(timeout);
+                func(...args);
+            };
             clearTimeout(timeout);
-            timeout = setTimeout(() => fn(...args), wait);
+            timeout = setTimeout(later, wait);
         };
     },
     
-    // Toast notification
-    toast: (msg, type = 'info') => {
-        const div = document.createElement('div');
-        const bgColor = type === 'error' ? 'bg-red-500' : type === 'success' ? 'bg-green-500' : 'bg-gray-800';
-        div.className = `fixed top-6 left-1/2 transform -translate-x-1/2 z-[10000] px-6 py-3 rounded-full shadow-lg text-white font-bold ${bgColor}`;
-        div.textContent = msg;
-        document.body.appendChild(div);
-        
-        setTimeout(() => {
-            div.style.opacity = '0';
-            div.style.transition = 'opacity 0.3s';
-            setTimeout(() => div.remove(), 300);
-        }, 3000);
+    /**
+     * 节流函数
+     */
+    throttle(func, limit) {
+        let inThrottle;
+        return function(...args) {
+            if (!inThrottle) {
+                func.apply(this, args);
+                inThrottle = true;
+                setTimeout(() => inThrottle = false, limit);
+            }
+        };
     },
     
-    // Export to Word
-    exportWord: (title, html) => {
-        const pre = '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word"><head><meta charset="utf-8"></head><body>';
-        const post = '</body></html>';
-        const blob = new Blob(['\ufeff', pre + html + post], { type: 'application/msword' });
+    /**
+     * 深拷贝
+     */
+    deepClone(obj) {
+        return JSON.parse(JSON.stringify(obj));
+    },
+    
+    /**
+     * 压缩图片到 Base64
+     */
+    async compressImage(file, maxWidth = 800, quality = 0.8) {
+        return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const img = new Image();
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    let width = img.width;
+                    let height = img.height;
+                    
+                    if (width > maxWidth) {
+                        height = (height * maxWidth) / width;
+                        width = maxWidth;
+                    }
+                    
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, width, height);
+                    resolve(canvas.toDataURL('image/jpeg', quality));
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        });
+    },
+    
+    /**
+     * 复制到剪贴板
+     */
+    async copyToClipboard(text) {
+        try {
+            await navigator.clipboard.writeText(text);
+            return true;
+        } catch (err) {
+            console.error('复制失败:', err);
+            return false;
+        }
+    },
+    
+    /**
+     * 下载文件
+     */
+    downloadFile(content, filename, mimeType = 'text/plain') {
+        const blob = new Blob([content], { type: mimeType });
         const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `${title}_Report.doc`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        a.click();
         URL.revokeObjectURL(url);
     }
 };
 
-// ============================================
-// AVATAR LIBRARY
-// ============================================
+// ========================================
+// 头像库
+// ========================================
 window.AVATARS = [
-    'https://api.dicebear.com/7.x/avataaars/svg?seed=LabMate0',
-    'https://api.dicebear.com/7.x/avataaars/svg?seed=LabMate1',
-    'https://api.dicebear.com/7.x/avataaars/svg?seed=LabMate2',
-    'https://api.dicebear.com/7.x/avataaars/svg?seed=LabMate3',
-    'https://api.dicebear.com/7.x/avataaars/svg?seed=LabMate4',
-    'https://api.dicebear.com/7.x/avataaars/svg?seed=LabMate5',
-    'https://api.dicebear.com/7.x/avataaars/svg?seed=LabMate6',
-    'https://api.dicebear.com/7.x/avataaars/svg?seed=LabMate7',
+    'https://api.dicebear.com/7.x/avataaars/svg?seed=1',
+    'https://api.dicebear.com/7.x/avataaars/svg?seed=2',
+    'https://api.dicebear.com/7.x/avataaars/svg?seed=3',
+    'https://api.dicebear.com/7.x/avataaars/svg?seed=4',
+    'https://api.dicebear.com/7.x/avataaars/svg?seed=5',
+    'https://api.dicebear.com/7.x/avataaars/svg?seed=6',
+    'https://api.dicebear.com/7.x/avataaars/svg?seed=7',
+    'https://api.dicebear.com/7.x/avataaars/svg?seed=8'
 ];
 
-console.log('✅ Config loaded - Firebase, i18n, Utils ready');
+console.log('✅ Config.js 加载完成');

@@ -1,1139 +1,782 @@
 /**
- * LabMate Pro - Canvas System
- * Infinite canvas with pan, zoom, and element management
+ * LabMate Pro - Canvas Engine (High Performance Core)
+ * 高性能 Canvas 渲染引擎 - 支持无限画布、60FPS流畅渲染
+ * 
+ * 核心功能:
+ * - 摄像机系统 (平移/缩放)
+ * - 坐标转换 (屏幕坐标 ↔ 世界坐标)
+ * - 元素管理 (增删改查)
+ * - 事件处理 (鼠标/触摸/键盘)
+ * - 渲染循环 (60FPS + 脏标记优化)
+ * - 框选系统
+ * - 惯性拖拽
+ * 
+ * @author Sine chen
+ * @version 2.0.0
+ * @date 2025-12-07
  */
 
-// History/Undo-Redo system
-class CanvasHistory {
-    constructor(maxSteps = 50) {
-        this.stack = [];
-        this.currentIndex = -1;
-        this.maxSteps = maxSteps;
-    }
-    
-    push(state) {
-        this.stack = this.stack.slice(0, this.currentIndex + 1);
-        this.stack.push(JSON.parse(JSON.stringify(state)));
-        this.currentIndex++;
-        if (this.stack.length > this.maxSteps) {
-            this.stack.shift();
-            this.currentIndex--;
-        }
-    }
-    
-    undo() {
-        if (this.currentIndex > 0) {
-            return this.stack[--this.currentIndex];
-        }
-        return null;
-    }
-    
-    redo() {
-        if (this.currentIndex < this.stack.length - 1) {
-            return this.stack[++this.currentIndex];
-        }
-        return null;
-    }
-    
-    canUndo() {
-        return this.currentIndex > 0;
-    }
-    
-    canRedo() {
-        return this.currentIndex < this.stack.length - 1;
-    }
-}
-
-class LabCanvas {
-    constructor(containerEl, options = {}) {
-        this.container = containerEl;
-        this.canvas = document.createElement('canvas');
-        this.ctx = this.canvas.getContext('2d');
+class CanvasEngine {
+    constructor(canvasElement) {
+        this.canvas = canvasElement;
+        this.ctx = canvasElement.getContext('2d');
         
-        // Canvas settings
-        this.width = containerEl.clientWidth;
-        this.height = containerEl.clientHeight;
-        this.canvas.width = this.width;
-        this.canvas.height = this.height;
-        containerEl.appendChild(this.canvas);
+        // 摄像机参数
+        this.camera = {
+            x: 0,                    // 摄像机X位置
+            y: 0,                    // 摄像机Y位置
+            zoom: 1,                 // 缩放倍率 (0.1 - 5.0)
+            minZoom: 0.1,
+            maxZoom: 5.0
+        };
         
-        // View settings
-        this.panX = 0;
-        this.panY = 0;
-        this.zoom = 1;
-        this.minZoom = 0.1;
-        this.maxZoom = 5;
+        // 元素管理
+        this.elements = new Map();          // 所有元素 <id, element>
+        this.selectedElements = new Set();  // 已选中元素 ID
+        this.hoveredElement = null;         // 鼠标悬停元素
         
-        // History/Undo-Redo
-        this.history = new CanvasHistory();
-        this.lastSaveState = null;
+        // 状态标记
+        this.isDragging = false;            // 是否正在拖拽元素
+        this.isPanning = false;             // 是否正在平移画布
+        this.isSelecting = false;           // 是否正在框选
+        this.isDirty = true;                // 是否需要重绘
         
-        // Element management
-        this.elements = [];
-        this.selectedElements = new Set();
-        this.selectedBox = null;
-        this.isDragging = false;
-        this.dragStart = null;
-        this.draggedElements = new Set();
+        // 鼠标状态
+        this.mouse = {
+            x: 0, y: 0,                     // 屏幕坐标
+            worldX: 0, worldY: 0,           // 世界坐标
+            downX: 0, downY: 0,             // 按下时的坐标
+            button: -1                       // 按下的按钮 (0=左键, 1=中键, 2=右键)
+        };
         
-        // Connection management
-        this.connectionManager = null; // Will be initialized after canvas is ready
+        // 拖拽状态
+        this.dragStart = { x: 0, y: 0 };
+        this.dragOffset = new Map();        // 每个元素的拖拽偏移
         
-        // Grid settings
-        this.gridSize = 20;
-        this.showGrid = true;
+        // 框选状态
+        this.selectionBox = {
+            active: false,
+            startX: 0,
+            startY: 0,
+            endX: 0,
+            endY: 0
+        };
         
-        // Event tracking
-        this.lastMousePos = { x: 0, y: 0 };
-        this.isPanning = false;
-        this.panStart = null;
-        this.panVelocity = { x: 0, y: 0 };  // For momentum panning
+        // 惯性拖拽
+        this.velocity = { x: 0, y: 0 };
+        this.lastPanX = 0;
+        this.lastPanY = 0;
         this.lastPanTime = 0;
-        this.lastPanPos = null;
         
-        // Performance monitoring
-        this.animationFrameId = null;
-        this.isDirty = true;
-        this.fps = 0;
-        this.frameCount = 0;
-        this.lastFpsTime = Date.now();
-        this.showFPS = false; // Debug flag
+        // 性能优化
+        this.renderRequest = null;
+        this.lastRenderTime = 0;
+        this.fps = 60;
         
-        // Event callbacks
-        this.onElementDoubleClick = null;
-        this.onSelectionChange = null;
-        this.onElementUpdate = null;
-        this.onConnectionCreate = null;
-        this.onElementDelete = null;
+        // 网格设置
+        this.grid = {
+            enabled: true,
+            size: 20,
+            color: '#e5e7eb'
+        };
         
-        this.setupEventListeners();
+        // 初始化
+        this.resize();
+        this.initEvents();
         this.startRenderLoop();
         
-        // Initialize connection manager
-        setTimeout(() => {
-            if (typeof window.ConnectionManager !== 'undefined') {
-                this.connectionManager = new window.ConnectionManager(this);
-            }
-        }, 100);
+        console.log('✅ Canvas Engine 初始化成功');
     }
     
-    /**
-     * Setup event listeners for canvas interactions
-     */
-    setupEventListeners() {
-        // Mouse events
-        this.canvas.addEventListener('mousedown', (e) => this.onMouseDown(e));
-        this.canvas.addEventListener('mousemove', (e) => this.onMouseMove(e));
-        this.canvas.addEventListener('mouseup', (e) => this.onMouseUp(e));
-        this.canvas.addEventListener('wheel', (e) => this.onWheel(e), { passive: false });
-        this.canvas.addEventListener('dblclick', (e) => this.onDoubleClick(e));
-        
-        // Touch events for mobile
-        this.canvas.addEventListener('touchstart', (e) => this.onTouchStart(e));
-        this.canvas.addEventListener('touchmove', (e) => this.onTouchMove(e));
-        this.canvas.addEventListener('touchend', (e) => this.onTouchEnd(e));
-        
-        // Keyboard events
-        window.addEventListener('keydown', (e) => this.onKeyDown(e));
-        window.addEventListener('keyup', (e) => this.onKeyUp(e));
-        
-        // Resize
-        window.addEventListener('resize', () => this.onResize());
-    }
+    // ========================================
+    // 坐标转换
+    // ========================================
     
     /**
-     * Convert screen coordinates to world coordinates
+     * 屏幕坐标 → 世界坐标
      */
     screenToWorld(screenX, screenY) {
         return {
-            x: (screenX - this.panX) / this.zoom,
-            y: (screenY - this.panY) / this.zoom
+            x: (screenX - this.canvas.width / 2) / this.camera.zoom + this.camera.x,
+            y: (screenY - this.canvas.height / 2) / this.camera.zoom + this.camera.y
         };
     }
     
     /**
-     * Convert world coordinates to screen coordinates
+     * 世界坐标 → 屏幕坐标
      */
     worldToScreen(worldX, worldY) {
         return {
-            x: worldX * this.zoom + this.panX,
-            y: worldY * this.zoom + this.panY
+            x: (worldX - this.camera.x) * this.camera.zoom + this.canvas.width / 2,
+            y: (worldY - this.camera.y) * this.camera.zoom + this.canvas.height / 2
         };
     }
     
+    // ========================================
+    // 摄像机控制
+    // ========================================
+    
     /**
-     * Mouse down event handler
+     * 平移摄像机
      */
-    onMouseDown(e) {
-        const rect = this.canvas.getBoundingClientRect();
-        const screenX = e.clientX - rect.left;
-        const screenY = e.clientY - rect.top;
-        const worldPos = this.screenToWorld(screenX, screenY);
+    pan(dx, dy) {
+        this.camera.x += dx / this.camera.zoom;
+        this.camera.y += dy / this.camera.zoom;
+        this.isDirty = true;
+    }
+    
+    /**
+     * 缩放摄像机
+     */
+    zoom(delta, centerX, centerY) {
+        const oldZoom = this.camera.zoom;
+        const zoomFactor = delta > 0 ? 1.1 : 0.9;
+        const newZoom = Math.max(
+            this.camera.minZoom,
+            Math.min(this.camera.maxZoom, oldZoom * zoomFactor)
+        );
         
-        // Check if clicking on an element
-        let clickedElement = null;
-        for (let i = this.elements.length - 1; i >= 0; i--) {
-            const el = this.elements[i];
-            if (this.isPointInElement(worldPos.x, worldPos.y, el)) {
-                clickedElement = el;
-                break;
-            }
-        }
+        if (newZoom === oldZoom) return;
         
-        if (e.button === 0) { // Left click
-            if (clickedElement) {
-                // Element selection
-                if (!e.ctrlKey && !e.shiftKey) {
-                    this.selectedElements.clear();
-                }
-                this.selectedElements.add(clickedElement.id);
-                this.draggedElements.add(clickedElement.id);
-                
-                this.isDragging = true;
-                this.dragStart = worldPos;
-            } else {
-                // Box selection or pan
-                if (!e.ctrlKey) {
-                    this.selectedElements.clear();
-                }
-                this.selectedBox = { x: worldPos.x, y: worldPos.y, width: 0, height: 0 };
-            }
-        } else if (e.button === 2) { // Right click for panning
-            this.isPanning = true;
-            this.panStart = { x: screenX, y: screenY };
-        }
+        // 缩放前的世界坐标
+        const worldPos = this.screenToWorld(centerX, centerY);
+        
+        // 应用新缩放
+        this.camera.zoom = newZoom;
+        
+        // 缩放后的世界坐标
+        const newWorldPos = this.screenToWorld(centerX, centerY);
+        
+        // 调整摄像机位置,使缩放中心保持不变
+        this.camera.x += worldPos.x - newWorldPos.x;
+        this.camera.y += worldPos.y - newWorldPos.y;
         
         this.isDirty = true;
     }
     
     /**
-     * Mouse move event handler
+     * 重置摄像机
      */
-    onMouseMove(e) {
-        const rect = this.canvas.getBoundingClientRect();
-        const screenX = e.clientX - rect.left;
-        const screenY = e.clientY - rect.top;
-        const worldPos = this.screenToWorld(screenX, screenY);
-        
-        this.lastMousePos = { x: screenX, y: screenY };
-        
-        if (this.isPanning && this.panStart) {
-            // Calculate velocity for momentum
-            const now = Date.now();
-            const timeDelta = Math.max(1, now - this.lastPanTime);
-            
-            if (this.lastPanPos) {
-                this.panVelocity.x = (screenX - this.lastPanPos.x) / timeDelta * 16; // Normalize to 60fps
-                this.panVelocity.y = (screenY - this.lastPanPos.y) / timeDelta * 16;
-            }
-            
-            // Pan canvas
-            this.panX += screenX - this.panStart.x;
-            this.panY += screenY - this.panStart.y;
-            this.panStart = { x: screenX, y: screenY };
-            this.lastPanPos = { x: screenX, y: screenY };
-            this.lastPanTime = now;
-        } else if (this.isDragging && this.dragStart) {
-            // Drag selected elements
-            const dx = worldPos.x - this.dragStart.x;
-            const dy = worldPos.y - this.dragStart.y;
-            
-            for (const el of this.elements) {
-                if (this.draggedElements.has(el.id)) {
-                    el.x += dx;
-                    el.y += dy;
-                }
-            }
-            
-            this.dragStart = worldPos;
-        } else if (this.selectedBox) {
-            // Update selection box
-            this.selectedBox.width = worldPos.x - this.selectedBox.x;
-            this.selectedBox.height = worldPos.y - this.selectedBox.y;
-            
-            // Select elements within box
-            const box = this.normalizeBox(this.selectedBox);
-            this.selectedElements.clear();
-            for (const el of this.elements) {
-                if (this.isElementInBox(el, box)) {
-                    this.selectedElements.add(el.id);
-                }
-            }
-        }
-        
-        // Update cursor
-        this.updateCursor(worldPos);
+    resetCamera() {
+        this.camera.x = 0;
+        this.camera.y = 0;
+        this.camera.zoom = 1;
         this.isDirty = true;
     }
     
     /**
-     * Mouse up event handler
+     * 适应所有元素到视图
      */
-    onMouseUp(e) {
-        // Save state if we were dragging elements
-        if (this.isDragging && this.draggedElements.size > 0) {
-            this.saveState();
+    fitToView() {
+        if (this.elements.size === 0) {
+            this.resetCamera();
+            return;
         }
         
-        this.isDragging = false;
-        this.isPanning = false;
-        this.draggedElements.clear();
-        this.dragStart = null;
-        this.panStart = null;
-        this.lastPanPos = null;
-        this.selectedBox = null;
+        // 计算所有元素的边界
+        let minX = Infinity, minY = Infinity;
+        let maxX = -Infinity, maxY = -Infinity;
         
-        // 触发选择改变回调
-        if (this.onSelectionChange && this.selectedElements.size > 0) {
-            this.onSelectionChange(Array.from(this.selectedElements));
-        }
+        this.elements.forEach(el => {
+            minX = Math.min(minX, el.x);
+            minY = Math.min(minY, el.y);
+            maxX = Math.max(maxX, el.x + el.width);
+            maxY = Math.max(maxY, el.y + el.height);
+        });
         
-        this.isDirty = true;
+        // 计算中心点
+        const centerX = (minX + maxX) / 2;
+        const centerY = (minY + maxY) / 2;
         
-        // Apply momentum if panning
-        if (Math.abs(this.panVelocity.x) > 0.1 || Math.abs(this.panVelocity.y) > 0.1) {
-            this.applyMomentum();
-        }
-    }
-    
-    /**
-     * Apply momentum/inertia to panning
-     */
-    applyMomentum() {
-        const momentum = () => {
-            if (Math.abs(this.panVelocity.x) > 0.1 || Math.abs(this.panVelocity.y) > 0.1) {
-                this.panX += this.panVelocity.x;
-                this.panY += this.panVelocity.y;
-                
-                // Friction - slow down
-                this.panVelocity.x *= 0.94;
-                this.panVelocity.y *= 0.94;
-                
-                this.isDirty = true;
-                requestAnimationFrame(momentum);
-            }
-        };
-        requestAnimationFrame(momentum);
-    }
-    
-    /**
-     * Wheel event handler for zoom
-     */
-    onWheel(e) {
-        e.preventDefault();
+        // 计算缩放比例
+        const boundsWidth = maxX - minX;
+        const boundsHeight = maxY - minY;
+        const padding = 100;
         
-        const rect = this.canvas.getBoundingClientRect();
-        const screenX = e.clientX - rect.left;
-        const screenY = e.clientY - rect.top;
-        const worldPos = this.screenToWorld(screenX, screenY);
+        const zoomX = (this.canvas.width - padding * 2) / boundsWidth;
+        const zoomY = (this.canvas.height - padding * 2) / boundsHeight;
+        const zoom = Math.min(zoomX, zoomY, this.camera.maxZoom);
         
-        const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1;
-        const newZoom = Math.max(this.minZoom, Math.min(this.maxZoom, this.zoom * zoomFactor));
-        
-        // Zoom towards cursor
-        const zoomDiff = newZoom - this.zoom;
-        this.panX -= worldPos.x * zoomDiff;
-        this.panY -= worldPos.y * zoomDiff;
-        this.zoom = newZoom;
-        
+        // 应用摄像机位置
+        this.camera.x = centerX;
+        this.camera.y = centerY;
+        this.camera.zoom = Math.max(this.camera.minZoom, zoom);
         this.isDirty = true;
     }
     
-    /**
-     * Double click event handler
-     */
-    onDoubleClick(e) {
-        const rect = this.canvas.getBoundingClientRect();
-        const screenX = e.clientX - rect.left;
-        const screenY = e.clientY - rect.top;
-        const worldPos = this.screenToWorld(screenX, screenY);
-        
-        // Check if double-clicked on an element
-        for (const el of this.elements) {
-            if (this.isPointInElement(worldPos.x, worldPos.y, el)) {
-                // Trigger element edit event
-                this.onElementDoubleClick?.(el);
-                return;
-            }
-        }
-        
-        // Double-click on empty space: zoom to fit
-        this.zoomToFit();
-    }
+    // ========================================
+    // 元素管理
+    // ========================================
     
     /**
-     * Touch start event handler
-     */
-    onTouchStart(e) {
-        if (e.touches.length === 1) {
-            this.onMouseDown({
-                clientX: e.touches[0].clientX,
-                clientY: e.touches[0].clientY,
-                button: 0,
-                ctrlKey: false,
-                shiftKey: false
-            });
-        } else if (e.touches.length === 2) {
-            this.touchDistance = this.getTouchDistance(e.touches);
-        }
-    }
-    
-    /**
-     * Touch move event handler
-     */
-    onTouchMove(e) {
-        if (e.touches.length === 1) {
-            this.onMouseMove({
-                clientX: e.touches[0].clientX,
-                clientY: e.touches[0].clientY
-            });
-        } else if (e.touches.length === 2) {
-            const newDistance = this.getTouchDistance(e.touches);
-            const zoomFactor = newDistance / this.touchDistance;
-            this.zoom *= zoomFactor;
-            this.zoom = Math.max(this.minZoom, Math.min(this.maxZoom, this.zoom));
-            this.touchDistance = newDistance;
-            this.isDirty = true;
-        }
-    }
-    
-    /**
-     * Touch end event handler
-     */
-    onTouchEnd(e) {
-        this.onMouseUp(e);
-        this.touchDistance = null;
-    }
-    
-    /**
-     * Get distance between two touch points
-     */
-    getTouchDistance(touches) {
-        const dx = touches[0].clientX - touches[1].clientX;
-        const dy = touches[0].clientY - touches[1].clientY;
-        return Math.sqrt(dx * dx + dy * dy);
-    }
-    
-    /**
-     * Keyboard event handler
-     */
-    onKeyDown(e) {
-        if (e.key === 'Delete' || e.key === 'Backspace') {
-            this.deleteSelectedElements();
-        } else if (e.key === 'Escape') {
-            this.selectedElements.clear();
-            this.isDirty = true;
-        } else if (e.ctrlKey && e.key === 'a') {
-            e.preventDefault();
-            for (const el of this.elements) {
-                this.selectedElements.add(el.id);
-            }
-            this.isDirty = true;
-        } else if (e.ctrlKey && e.key === 'z') {
-            e.preventDefault();
-            this.undo();
-        } else if ((e.ctrlKey && e.key === 'y') || (e.ctrlKey && e.shiftKey && e.key === 'Z')) {
-            e.preventDefault();
-            this.redo();
-        } else if (e.ctrlKey && e.key === 'c') {
-            e.preventDefault();
-            this.copySelected();
-        } else if (e.ctrlKey && e.key === 'v') {
-            e.preventDefault();
-            this.pasteClipboard();
-        }
-    }
-    
-    /**
-     * Keyboard up event handler
-     */
-    onKeyUp(e) {
-        // Handle key releases if needed
-    }
-    
-    /**
-     * Resize event handler
-     */
-    onResize() {
-        this.width = this.container.clientWidth;
-        this.height = this.container.clientHeight;
-        this.canvas.width = this.width;
-        this.canvas.height = this.height;
-        this.isDirty = true;
-    }
-    
-    /**
-     * Update cursor based on position
-     */
-    updateCursor(worldPos) {
-        for (const el of this.elements) {
-            if (this.isPointInElement(worldPos.x, worldPos.y, el)) {
-                this.canvas.style.cursor = 'grab';
-                return;
-            }
-        }
-        this.canvas.style.cursor = 'default';
-    }
-    
-    /**
-     * Add element to canvas
+     * 添加元素
      */
     addElement(element) {
-        this.saveState();
-        
-        const id = element.id || `elem_${Date.now()}_${Math.random()}`;
-        const newElement = {
-            id,
-            type: element.type || 'note',
-            x: element.x || 0,
-            y: element.y || 0,
-            width: element.width || 200,
-            height: element.height || 150,
-            content: element.content || '',
-            color: element.color || '#ffffff',
-            metadata: element.metadata || {}
-        };
-        this.elements.push(newElement);
-        // 触发元素创建回调（可选）
-        // this.onElementCreate?.(newElement);
+        this.elements.set(element.id, element);
         this.isDirty = true;
-        return newElement;
+        return element;
     }
     
     /**
-     * Remove element from canvas
+     * 删除元素
      */
     removeElement(id) {
-        this.elements = this.elements.filter(e => e.id !== id);
+        this.elements.delete(id);
         this.selectedElements.delete(id);
         this.isDirty = true;
     }
     
     /**
-     * Delete all selected elements
-     */
-    deleteSelectedElements() {
-        if (this.selectedElements.size === 0) return;
-        
-        this.saveState();
-        
-        for (const id of this.selectedElements) {
-            const element = this.getElement(id);
-            if (element) {
-                this.onElementDelete?.(element);
-            }
-            this.removeElement(id);
-        }
-        this.selectedElements.clear();
-    }
-    
-    /**
-     * Get element by ID
+     * 获取元素
      */
     getElement(id) {
-        return this.elements.find(e => e.id === id);
+        return this.elements.get(id);
     }
     
     /**
-     * Update element data
+     * 清空所有元素
      */
-    updateElement(id, data) {
-        const el = this.getElement(id);
-        if (el) {
-            Object.assign(el, data);
-            this.onElementUpdate?.(el);
-            this.isDirty = true;
+    clearElements() {
+        this.elements.clear();
+        this.selectedElements.clear();
+        this.isDirty = true;
+    }
+    
+    /**
+     * 检测点击的元素 (从上到下)
+     */
+    getElementAtPoint(worldX, worldY) {
+        // 反向遍历 (后绘制的元素在上层)
+        const elementsArray = Array.from(this.elements.values()).reverse();
+        
+        for (const element of elementsArray) {
+            if (this.isPointInElement(worldX, worldY, element)) {
+                return element;
+            }
         }
+        
+        return null;
     }
     
     /**
-     * Save state for undo/redo
+     * 判断点是否在元素内
      */
-    saveState() {
-        const state = this.export();
-        this.history.push(state);
-        this.lastSaveState = state;
+    isPointInElement(worldX, worldY, element) {
+        return worldX >= element.x &&
+               worldX <= element.x + element.width &&
+               worldY >= element.y &&
+               worldY <= element.y + element.height;
     }
     
     /**
-     * Undo last action
+     * 获取框选范围内的所有元素
      */
-    undo() {
-        const state = this.history.undo();
-        if (state) {
-            this.import(state);
-            this.isDirty = true;
-        }
-    }
-    
-    /**
-     * Redo last undo
-     */
-    redo() {
-        const state = this.history.redo();
-        if (state) {
-            this.import(state);
-            this.isDirty = true;
-        }
-    }
-    
-    /**
-     * Copy selected elements
-     */
-    copySelected() {
-        if (this.selectedElements.size === 0) {
-            console.warn('No elements selected to copy');
-            return;
-        }
+    getElementsInBox(box) {
+        const minX = Math.min(box.startX, box.endX);
+        const maxX = Math.max(box.startX, box.endX);
+        const minY = Math.min(box.startY, box.endY);
+        const maxY = Math.max(box.startY, box.endY);
         
         const selected = [];
-        for (const id of this.selectedElements) {
-            const el = this.getElement(id);
-            if (el) {
-                selected.push(JSON.parse(JSON.stringify(el)));
+        
+        this.elements.forEach(element => {
+            // 检查元素是否与框选区域相交
+            if (element.x + element.width >= minX &&
+                element.x <= maxX &&
+                element.y + element.height >= minY &&
+                element.y <= maxY) {
+                selected.push(element);
+            }
+        });
+        
+        return selected;
+    }
+    
+    // ========================================
+    // 事件处理
+    // ========================================
+    
+    initEvents() {
+        // 鼠标事件
+        this.canvas.addEventListener('mousedown', this.onMouseDown.bind(this));
+        this.canvas.addEventListener('mousemove', this.onMouseMove.bind(this));
+        this.canvas.addEventListener('mouseup', this.onMouseUp.bind(this));
+        this.canvas.addEventListener('wheel', this.onWheel.bind(this));
+        this.canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+        
+        // 触摸事件 (移动端支持)
+        this.canvas.addEventListener('touchstart', this.onTouchStart.bind(this));
+        this.canvas.addEventListener('touchmove', this.onTouchMove.bind(this));
+        this.canvas.addEventListener('touchend', this.onTouchEnd.bind(this));
+        
+        // 键盘事件
+        window.addEventListener('keydown', this.onKeyDown.bind(this));
+        
+        // 窗口大小调整
+        window.addEventListener('resize', this.resize.bind(this));
+    }
+    
+    /**
+     * 鼠标按下
+     */
+    onMouseDown(e) {
+        const rect = this.canvas.getBoundingClientRect();
+        this.mouse.x = e.clientX - rect.left;
+        this.mouse.y = e.clientY - rect.top;
+        this.mouse.button = e.button;
+        
+        const world = this.screenToWorld(this.mouse.x, this.mouse.y);
+        this.mouse.worldX = world.x;
+        this.mouse.worldY = world.y;
+        this.mouse.downX = this.mouse.worldX;
+        this.mouse.downY = this.mouse.worldY;
+        
+        // 右键或中键 = 平移画布
+        if (e.button === 1 || e.button === 2) {
+            this.isPanning = true;
+            this.canvas.style.cursor = 'grabbing';
+            return;
+        }
+        
+        // 左键
+        if (e.button === 0) {
+            const clickedElement = this.getElementAtPoint(world.x, world.y);
+            
+            if (clickedElement) {
+                // 点击了元素
+                if (!this.selectedElements.has(clickedElement.id)) {
+                    // 如果没按 Ctrl,清空之前的选择
+                    if (!e.ctrlKey && !e.metaKey) {
+                        this.selectedElements.clear();
+                    }
+                    this.selectedElements.add(clickedElement.id);
+                }
+                
+                // 准备拖拽
+                this.isDragging = true;
+                this.dragStart = { x: world.x, y: world.y };
+                
+                // 记录每个选中元素的初始位置
+                this.dragOffset.clear();
+                this.selectedElements.forEach(id => {
+                    const el = this.elements.get(id);
+                    if (el) {
+                        this.dragOffset.set(id, {
+                            x: el.x - world.x,
+                            y: el.y - world.y
+                        });
+                    }
+                });
+                
+                this.canvas.style.cursor = 'move';
+            } else {
+                // 点击了空白处 - 开始框选
+                if (!e.ctrlKey && !e.metaKey) {
+                    this.selectedElements.clear();
+                }
+                
+                this.isSelecting = true;
+                this.selectionBox = {
+                    active: true,
+                    startX: world.x,
+                    startY: world.y,
+                    endX: world.x,
+                    endY: world.y
+                };
+                
+                this.canvas.style.cursor = 'crosshair';
+            }
+            
+            this.isDirty = true;
+        }
+    }
+    
+    /**
+     * 鼠标移动
+     */
+    onMouseMove(e) {
+        const rect = this.canvas.getBoundingClientRect();
+        const newX = e.clientX - rect.left;
+        const newY = e.clientY - rect.top;
+        
+        const dx = newX - this.mouse.x;
+        const dy = newY - this.mouse.y;
+        
+        this.mouse.x = newX;
+        this.mouse.y = newY;
+        
+        const world = this.screenToWorld(this.mouse.x, this.mouse.y);
+        this.mouse.worldX = world.x;
+        this.mouse.worldY = world.y;
+        
+        // 平移画布
+        if (this.isPanning) {
+            this.pan(-dx, -dy);
+            
+            // 记录速度 (用于惯性)
+            const now = Date.now();
+            const dt = now - this.lastPanTime;
+            if (dt > 0) {
+                this.velocity.x = -dx / dt;
+                this.velocity.y = -dy / dt;
+            }
+            this.lastPanTime = now;
+            
+            return;
+        }
+        
+        // 拖拽元素
+        if (this.isDragging) {
+            this.selectedElements.forEach(id => {
+                const element = this.elements.get(id);
+                const offset = this.dragOffset.get(id);
+                if (element && offset) {
+                    element.x = world.x + offset.x;
+                    element.y = world.y + offset.y;
+                }
+            });
+            this.isDirty = true;
+            return;
+        }
+        
+        // 框选
+        if (this.isSelecting) {
+            this.selectionBox.endX = world.x;
+            this.selectionBox.endY = world.y;
+            this.isDirty = true;
+            return;
+        }
+        
+        // 检测悬停
+        const hoveredElement = this.getElementAtPoint(world.x, world.y);
+        if (hoveredElement !== this.hoveredElement) {
+            this.hoveredElement = hoveredElement;
+            this.canvas.style.cursor = hoveredElement ? 'pointer' : 'default';
+            this.isDirty = true;
+        }
+    }
+    
+    /**
+     * 鼠标松开
+     */
+    onMouseUp(e) {
+        // 结束框选
+        if (this.isSelecting) {
+            const selectedElements = this.getElementsInBox(this.selectionBox);
+            selectedElements.forEach(el => this.selectedElements.add(el.id));
+            this.selectionBox.active = false;
+            this.isSelecting = false;
+            this.isDirty = true;
+        }
+        
+        // 结束拖拽
+        if (this.isDragging) {
+            this.isDragging = false;
+            this.dragOffset.clear();
+            
+            // 触发元素移动事件 (可用于保存到云端)
+            if (this.onElementsMoved) {
+                this.onElementsMoved(Array.from(this.selectedElements));
             }
         }
         
-        if (selected.length === 0) {
-            console.warn('Selected elements could not be copied');
-            return;
-        }
-        
-        this.clipboard = {
-            elements: selected,
-            timestamp: Date.now()
-        };
-    }
-    
-    /**
-     * Paste from clipboard
-     */
-    pasteClipboard() {
-        if (!this.clipboard || !this.clipboard.elements || this.clipboard.elements.length === 0) {
-            console.warn('Nothing to paste');
-            return;
-        }
-        
-        this.saveState();
-        
-        const newIds = [];
-        const offsetX = 20;
-        const offsetY = 20;
-        
-        for (const el of this.clipboard.elements) {
-            if (!el || !el.id) continue;  // Skip invalid elements
+        // 结束平移
+        if (this.isPanning) {
+            this.isPanning = false;
             
-            const newEl = {
-                ...JSON.parse(JSON.stringify(el)),
-                id: `elem_${Date.now()}_${Math.random()}`,
-                x: (el.x || 0) + offsetX,
-                y: (el.y || 0) + offsetY
-            };
+            // 应用惯性
+            this.applyInertia();
+        }
+        
+        this.canvas.style.cursor = 'default';
+    }
+    
+    /**
+     * 鼠标滚轮 (缩放)
+     */
+    onWheel(e) {
+        e.preventDefault();
+        this.zoom(-e.deltaY, this.mouse.x, this.mouse.y);
+    }
+    
+    /**
+     * 键盘按下
+     */
+    onKeyDown(e) {
+        // Delete / Backspace - 删除选中元素
+        if ((e.key === 'Delete' || e.key === 'Backspace') && this.selectedElements.size > 0) {
+            e.preventDefault();
+            this.selectedElements.forEach(id => this.removeElement(id));
+            this.selectedElements.clear();
             
-            this.elements.push(newEl);
-            newIds.push(newEl.id);
+            if (this.onElementsDeleted) {
+                this.onElementsDeleted();
+            }
         }
         
-        this.selectedElements.clear();
-        for (const id of newIds) {
-            this.selectedElements.add(id);
+        // Ctrl+A - 全选
+        if ((e.ctrlKey || e.metaKey) && e.key === 'a') {
+            e.preventDefault();
+            this.selectedElements.clear();
+            this.elements.forEach((el, id) => this.selectedElements.add(id));
+            this.isDirty = true;
         }
         
-        this.isDirty = true;
+        // Escape - 取消选择
+        if (e.key === 'Escape') {
+            this.selectedElements.clear();
+            this.isDirty = true;
+        }
     }
     
     /**
-     * Check if point is inside element
+     * 触摸开始 (移动端)
      */
-    isPointInElement(x, y, element) {
-        return x >= element.x && x <= element.x + element.width &&
-               y >= element.y && y <= element.y + element.height;
+    onTouchStart(e) {
+        if (e.touches.length === 1) {
+            const touch = e.touches[0];
+            const mouseEvent = new MouseEvent('mousedown', {
+                clientX: touch.clientX,
+                clientY: touch.clientY,
+                button: 0
+            });
+            this.onMouseDown(mouseEvent);
+        }
     }
     
     /**
-     * Check if element is inside selection box
+     * 触摸移动
      */
-    isElementInBox(element, box) {
-        return !(element.x + element.width < box.x ||
-                 element.x > box.x + box.width ||
-                 element.y + element.height < box.y ||
-                 element.y > box.y + box.height);
+    onTouchMove(e) {
+        e.preventDefault();
+        if (e.touches.length === 1) {
+            const touch = e.touches[0];
+            const mouseEvent = new MouseEvent('mousemove', {
+                clientX: touch.clientX,
+                clientY: touch.clientY
+            });
+            this.onMouseMove(mouseEvent);
+        }
     }
     
     /**
-     * Normalize box coordinates
+     * 触摸结束
      */
-    normalizeBox(box) {
-        return {
-            x: Math.min(box.x, box.x + box.width),
-            y: Math.min(box.y, box.y + box.height),
-            width: Math.abs(box.width),
-            height: Math.abs(box.height)
+    onTouchEnd(e) {
+        this.onMouseUp(new MouseEvent('mouseup'));
+    }
+    
+    /**
+     * 应用惯性拖拽
+     */
+    applyInertia() {
+        const friction = 0.95;
+        const minVelocity = 0.01;
+        
+        const animate = () => {
+            if (Math.abs(this.velocity.x) < minVelocity && Math.abs(this.velocity.y) < minVelocity) {
+                this.velocity = { x: 0, y: 0 };
+                return;
+            }
+            
+            this.camera.x += this.velocity.x * 10;
+            this.camera.y += this.velocity.y * 10;
+            
+            this.velocity.x *= friction;
+            this.velocity.y *= friction;
+            
+            this.isDirty = true;
+            requestAnimationFrame(animate);
         };
+        
+        if (Math.abs(this.velocity.x) > minVelocity || Math.abs(this.velocity.y) > minVelocity) {
+            requestAnimationFrame(animate);
+        }
     }
     
-    /**
-     * Zoom to fit all elements
-     */
-    zoomToFit() {
-        if (this.elements.length === 0) {
-            this.zoom = 1;
-            this.panX = 0;
-            this.panY = 0;
-            return;
-        }
-        
-        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-        for (const el of this.elements) {
-            minX = Math.min(minX, el.x);
-            minY = Math.min(minY, el.y);
-            maxX = Math.max(maxX, el.x + el.width);
-            maxY = Math.max(maxY, el.y + el.height);
-        }
-        
-        const padding = 50;
-        const contentWidth = maxX - minX + padding * 2;
-        const contentHeight = maxY - minY + padding * 2;
-        
-        const zoomX = this.width / contentWidth;
-        const zoomY = this.height / contentHeight;
-        this.zoom = Math.min(zoomX, zoomY, this.maxZoom);
-        
-        this.panX = this.width / 2 - (minX + (maxX - minX) / 2) * this.zoom;
-        this.panY = this.height / 2 - (minY + (maxY - minY) / 2) * this.zoom;
-        
-        this.isDirty = true;
-    }
+    // ========================================
+    // 渲染系统
+    // ========================================
     
     /**
-     * Start render loop
+     * 启动渲染循环
      */
     startRenderLoop() {
-        const render = () => {
-            // 计算FPS
-            this.frameCount++;
-            const now = Date.now();
-            if (now - this.lastFpsTime >= 1000) {
-                this.fps = this.frameCount;
-                this.frameCount = 0;
-                this.lastFpsTime = now;
-            }
-            
+        const render = (timestamp) => {
+            // 脏标记优化 - 只在需要时重绘
             if (this.isDirty) {
                 this.render();
                 this.isDirty = false;
             }
-            this.animationFrameId = requestAnimationFrame(render);
+            
+            this.renderRequest = requestAnimationFrame(render);
         };
-        render();
+        
+        this.renderRequest = requestAnimationFrame(render);
     }
     
     /**
-     * Stop render loop
+     * 停止渲染循环
      */
     stopRenderLoop() {
-        if (this.animationFrameId) {
-            cancelAnimationFrame(this.animationFrameId);
+        if (this.renderRequest) {
+            cancelAnimationFrame(this.renderRequest);
+            this.renderRequest = null;
         }
     }
     
     /**
-     * Main render function
+     * 渲染一帧
      */
     render() {
-        // Clear canvas
-        this.ctx.fillStyle = '#f8fafc';
-        this.ctx.fillRect(0, 0, this.width, this.height);
+        // 清空画布
+        this.ctx.fillStyle = '#ffffff';
+        this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
         
-        // Draw grid
-        if (this.showGrid) {
-            this.drawGrid();
-        }
-        
-        // Save context
+        // 保存上下文
         this.ctx.save();
         
-        // Apply pan and zoom
-        this.ctx.translate(this.panX, this.panY);
-        this.ctx.scale(this.zoom, this.zoom);
+        // 应用摄像机变换
+        this.ctx.translate(this.canvas.width / 2, this.canvas.height / 2);
+        this.ctx.scale(this.camera.zoom, this.camera.zoom);
+        this.ctx.translate(-this.camera.x, -this.camera.y);
         
-        // Draw connections first (under elements)
-        if (this.connectionManager) {
-            this.connectionManager.drawConnections(this.ctx, this.zoom, this.panX, this.panY);
+        // 绘制网格
+        if (this.grid.enabled) {
+            this.renderGrid();
         }
         
-        // Draw all elements
-        for (const el of this.elements) {
-            this.drawElement(el);
+        // 绘制所有元素
+        this.elements.forEach(element => {
+            if (element.render) {
+                element.render(this.ctx, this.selectedElements.has(element.id));
+            }
+        });
+        
+        // 绘制框选框
+        if (this.selectionBox.active) {
+            this.renderSelectionBox();
         }
         
-        // Draw selection box
-        if (this.selectedBox) {
-            this.drawSelectionBox(this.selectedBox);
-        }
-        
+        // 恢复上下文
         this.ctx.restore();
         
-        // Draw UI overlays
-        this.drawUIOverlay();
+        // 绘制 UI 信息 (屏幕空间)
+        this.renderUI();
     }
     
     /**
-     * Draw grid background
+     * 渲染网格
      */
-    drawGrid() {
-        const gridSize = this.gridSize * this.zoom;
-        if (gridSize < 5) return; // Don't draw if grid too small
+    renderGrid() {
+        const gridSize = this.grid.size;
+        const zoom = this.camera.zoom;
         
-        this.ctx.strokeStyle = 'rgba(200, 200, 200, 0.2)';
-        this.ctx.lineWidth = 0.5;
+        // 计算可见区域
+        const viewportLeft = this.camera.x - (this.canvas.width / 2 / zoom);
+        const viewportTop = this.camera.y - (this.canvas.height / 2 / zoom);
+        const viewportRight = this.camera.x + (this.canvas.width / 2 / zoom);
+        const viewportBottom = this.camera.y + (this.canvas.height / 2 / zoom);
         
-        const startX = Math.floor(-this.panX / gridSize) * gridSize;
-        const startY = Math.floor(-this.panY / gridSize) * gridSize;
+        // 网格线起始位置
+        const startX = Math.floor(viewportLeft / gridSize) * gridSize;
+        const startY = Math.floor(viewportTop / gridSize) * gridSize;
         
-        for (let x = startX; x < this.width; x += gridSize) {
-            this.ctx.beginPath();
-            this.ctx.moveTo(x, 0);
-            this.ctx.lineTo(x, this.height);
-            this.ctx.stroke();
+        this.ctx.strokeStyle = this.grid.color;
+        this.ctx.lineWidth = 1 / zoom;
+        this.ctx.beginPath();
+        
+        // 绘制垂直线
+        for (let x = startX; x <= viewportRight; x += gridSize) {
+            this.ctx.moveTo(x, viewportTop);
+            this.ctx.lineTo(x, viewportBottom);
         }
         
-        for (let y = startY; y < this.height; y += gridSize) {
-            this.ctx.beginPath();
-            this.ctx.moveTo(0, y);
-            this.ctx.lineTo(this.width, y);
-            this.ctx.stroke();
-        }
-    }
-    
-    /**
-     * Draw individual element
-     */
-    drawElement(element) {
-        const x = element.x;
-        const y = element.y;
-        const w = element.width;
-        const h = element.height;
-        const isSelected = this.selectedElements.has(element.id);
-        
-        // Draw element background
-        this.ctx.fillStyle = element.color;
-        this.ctx.fillRect(x, y, w, h);
-        
-        // Draw border
-        this.ctx.strokeStyle = isSelected ? '#2563eb' : '#cbd5e1';
-        this.ctx.lineWidth = isSelected ? 3 : 1;
-        this.ctx.strokeRect(x, y, w, h);
-        
-        // Draw type icon
-        this.drawElementIcon(element);
-        
-        // Draw content preview
-        this.drawElementContent(element);
-    }
-    
-    /**
-     * Draw element type icon
-     */
-    drawElementIcon(element) {
-        const iconMap = {
-            note: '📝',
-            timer: '⏱️',
-            protocol: '✓',
-            text: 'T',
-            file: '📎'
-        };
-        
-        const icon = iconMap[element.type] || '?';
-        this.ctx.font = 'bold 16px Arial';
-        this.ctx.fillStyle = '#64748b';
-        this.ctx.fillText(icon, element.x + 8, element.y + 24);
-    }
-    
-    /**
-     * Draw element content preview
-     */
-    drawElementContent(element) {
-        const x = element.x + 8;
-        const y = element.y + 35;
-        const maxWidth = element.width - 16;
-        
-        this.ctx.font = '12px Arial';
-        this.ctx.fillStyle = '#475569';
-        
-        const text = element.content || '(empty)';
-        const lines = this.wrapText(text, maxWidth);
-        
-        for (let i = 0; i < Math.min(lines.length, 3); i++) {
-            this.ctx.fillText(lines[i], x, y + i * 16);
-        }
-    }
-    
-    /**
-     * Wrap text to fit width
-     */
-    wrapText(text, maxWidth) {
-        const lines = [];
-        const words = text.split(' ');
-        let currentLine = '';
-        
-        for (const word of words) {
-            const testLine = currentLine + (currentLine ? ' ' : '') + word;
-            const metrics = this.ctx.measureText(testLine);
-            
-            if (metrics.width > maxWidth && currentLine) {
-                lines.push(currentLine);
-                currentLine = word;
-            } else {
-                currentLine = testLine;
-            }
+        // 绘制水平线
+        for (let y = startY; y <= viewportBottom; y += gridSize) {
+            this.ctx.moveTo(viewportLeft, y);
+            this.ctx.lineTo(viewportRight, y);
         }
         
-        if (currentLine) lines.push(currentLine);
-        return lines;
+        this.ctx.stroke();
     }
     
     /**
-     * Draw selection box
+     * 渲染框选框
      */
-    drawSelectionBox(box) {
-        const normalized = this.normalizeBox(box);
-        this.ctx.strokeStyle = '#2563eb';
-        this.ctx.lineWidth = 2;
-        this.ctx.setLineDash([5, 5]);
-        this.ctx.strokeRect(normalized.x, normalized.y, normalized.width, normalized.height);
+    renderSelectionBox() {
+        const box = this.selectionBox;
+        const x = Math.min(box.startX, box.endX);
+        const y = Math.min(box.startY, box.endY);
+        const width = Math.abs(box.endX - box.startX);
+        const height = Math.abs(box.endY - box.startY);
+        
+        // 填充
+        this.ctx.fillStyle = 'rgba(59, 130, 246, 0.1)';
+        this.ctx.fillRect(x, y, width, height);
+        
+        // 边框
+        this.ctx.strokeStyle = '#3b82f6';
+        this.ctx.lineWidth = 2 / this.camera.zoom;
+        this.ctx.setLineDash([5 / this.camera.zoom, 5 / this.camera.zoom]);
+        this.ctx.strokeRect(x, y, width, height);
         this.ctx.setLineDash([]);
     }
     
     /**
-     * Draw UI overlay (info, zoom level, etc)
+     * 渲染 UI 信息
      */
-    drawUIOverlay() {
-        this.ctx.font = 'bold 12px Arial';
-        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-        this.ctx.fillText(`Zoom: ${(this.zoom * 100).toFixed(0)}% | Elements: ${this.elements.length}`, 10, this.height - 10);
-        
-        if (this.selectedElements.size > 0) {
-            this.ctx.fillStyle = 'rgba(37, 99, 235, 0.8)';
-            this.ctx.fillText(`Selected: ${this.selectedElements.size}`, 10, this.height - 25);
-        }
-        
-        // Show FPS if debug mode enabled
-        if (this.showFPS) {
-            this.ctx.save();
-            this.ctx.resetTransform();
-            this.ctx.fillStyle = '#000';
-            this.ctx.font = 'bold 14px monospace';
-            this.ctx.fillText(`FPS: ${this.fps.toFixed(1)}`, 10, 20);
-            this.ctx.fillText(`Elements: ${this.elements.length}`, 10, 40);
-            this.ctx.fillText(`Zoom: ${this.zoom.toFixed(2)}x`, 10, 60);
-            this.ctx.restore();
-        }
+    renderUI() {
+        // 显示 FPS, 元素数量, 缩放等信息
+        this.ctx.fillStyle = '#000';
+        this.ctx.font = '12px monospace';
+        this.ctx.textAlign = 'left';
+        this.ctx.fillText(`Elements: ${this.elements.size}`, 10, 20);
+        this.ctx.fillText(`Selected: ${this.selectedElements.size}`, 10, 35);
+        this.ctx.fillText(`Zoom: ${Math.round(this.camera.zoom * 100)}%`, 10, 50);
     }
     
     /**
-     * Export canvas data (包含连接线和元数据)
+     * 调整画布大小
+     */
+    resize() {
+        const container = this.canvas.parentElement;
+        this.canvas.width = container.clientWidth;
+        this.canvas.height = container.clientHeight;
+        this.isDirty = true;
+    }
+    
+    /**
+     * 导出画布数据
      */
     export() {
-        const connections = this.connectionManager ? 
-            (this.connectionManager.export?.() || []) : [];
-        
         return {
-            elements: JSON.parse(JSON.stringify(this.elements)),
-            connections: connections,
-            view: { 
-                panX: this.panX, 
-                panY: this.panY, 
-                zoom: this.zoom 
-            },
-            metadata: {
-                exportedAt: new Date().toISOString(),
-                elementCount: this.elements.length,
-                connectionCount: connections.length
-            }
+            camera: { ...this.camera },
+            elements: Array.from(this.elements.values()).map(el => el.toJSON())
         };
     }
     
     /**
-     * Import canvas data
+     * 导入画布数据
      */
     import(data) {
-        this.elements = data.elements || [];
-        
-        // 导入连接线
-        if (data.connections && this.connectionManager) {
-            if (this.connectionManager.import) {
-                this.connectionManager.import(data.connections);
-            }
+        if (data.camera) {
+            this.camera = { ...this.camera, ...data.camera };
         }
-        
-        if (data.view) {
-            this.panX = data.view.panX;
-            this.panY = data.view.panY;
-            this.zoom = data.view.zoom;
-        }
+        // 元素由 elements.js 负责创建
         this.isDirty = true;
     }
     
     /**
-     * Set zoom level to specific value
-     */
-    setZoom(zoomLevel, centerX = this.width / 2, centerY = this.height / 2) {
-        const oldZoom = this.zoom;
-        this.zoom = Math.max(this.minZoom, Math.min(zoomLevel, this.maxZoom));
-        
-        // 围绕指定点缩放
-        const worldX = (centerX - this.panX) / oldZoom;
-        const worldY = (centerY - this.panY) / oldZoom;
-        
-        this.panX = centerX - worldX * this.zoom;
-        this.panY = centerY - worldY * this.zoom;
-        
-        this.isDirty = true;
-    }
-    
-    /**
-     * Pan to specific world coordinates
-     */
-    panTo(worldX, worldY) {
-        this.panX = this.width / 2 - worldX * this.zoom;
-        this.panY = this.height / 2 - worldY * this.zoom;
-        this.isDirty = true;
-    }
-    
-    /**
-     * Reset view to initial state
-     */
-    resetView() {
-        this.zoom = 1;
-        this.panX = 0;
-        this.panY = 0;
-        this.selectedElements.clear();
-        this.isDirty = true;
-    }
-    
-    /**
-     * Clear all elements and connections
-     */
-    clear() {
-        this.elements = [];
-        this.selectedElements.clear();
-        if (this.connectionManager) {
-            this.connectionManager.connections = [];
-        }
-        this.isDirty = true;
-    }
-    
-    /**
-     * Export current view as PNG image
-     */
-    exportImage(filename = 'canvas-export.png') {
-        // 创建临时canvas用于导出
-        const exportCanvas = document.createElement('canvas');
-        const context = exportCanvas.getContext('2d');
-        
-        if (this.elements.length === 0) {
-            console.warn('No elements to export');
-            return;
-        }
-        
-        // 计算内容区域
-        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-        for (const el of this.elements) {
-            minX = Math.min(minX, el.x);
-            minY = Math.min(minY, el.y);
-            maxX = Math.max(maxX, el.x + (el.width || 200));
-            maxY = Math.max(maxY, el.y + (el.height || 150));
-        }
-        
-        const padding = 40;
-        const width = (maxX - minX) + padding * 2;
-        const height = (maxY - minY) + padding * 2;
-        
-        exportCanvas.width = Math.max(width, 400);
-        exportCanvas.height = Math.max(height, 300);
-        
-        // 白色背景
-        context.fillStyle = '#ffffff';
-        context.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
-        
-        // 应用变换
-        context.translate(padding - minX, padding - minY);
-        
-        // 绘制网格
-        context.strokeStyle = '#e2e8f0';
-        context.lineWidth = 0.5;
-        for (let x = 0; x < width; x += this.gridSize) {
-            context.beginPath();
-            context.moveTo(x, 0);
-            context.lineTo(x, height);
-            context.stroke();
-        }
-        for (let y = 0; y < height; y += this.gridSize) {
-            context.beginPath();
-            context.moveTo(0, y);
-            context.lineTo(width, y);
-            context.stroke();
-        }
-        
-        // 绘制所有元素
-        for (const el of this.elements) {
-            this.drawElementForExport(context, el);
-        }
-        
-        // 下载
-        exportCanvas.toBlob((blob) => {
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = filename;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            URL.revokeObjectURL(url);
-        });
-    }
-    
-    /**
-     * Helper: Draw element for export
-     */
-    drawElementForExport(ctx, element) {
-        const { x, y, width = 200, height = 150, type, content = '', color = '#ffffff' } = element;
-        
-        // 绘制元素框
-        ctx.fillStyle = color;
-        ctx.fillRect(x, y, width, height);
-        
-        // 绘制边框
-        ctx.strokeStyle = '#94a3b8';
-        ctx.lineWidth = 1.5;
-        ctx.strokeRect(x, y, width, height);
-        
-        // 绘制类型标签
-        ctx.fillStyle = '#64748b';
-        ctx.font = 'bold 12px Arial';
-        ctx.fillText(type.toUpperCase(), x + 6, y + 18);
-        
-        // 绘制内容（简化版）
-        if (content) {
-            ctx.fillStyle = '#1e293b';
-            ctx.font = '12px Arial';
-            const text = String(content).substring(0, 30);
-            const lines = text.split('\\n');
-            lines.slice(0, 3).forEach((line, i) => {
-                ctx.fillText(line, x + 6, y + 40 + i * 14);
-            });
-        }
-    }
-    
-    /**
-     * Destroy canvas and cleanup
+     * 销毁引擎
      */
     destroy() {
         this.stopRenderLoop();
-        this.canvas.remove();
+        this.clearElements();
     }
 }
 
-// Export for use
-window.LabCanvas = LabCanvas;
+// 暴露到全局
+window.CanvasEngine = CanvasEngine;
+
+console.log('✅ Canvas.js 加载完成');

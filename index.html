@@ -1,49 +1,113 @@
-﻿<!DOCTYPE html>
-<html lang="en">
+<!DOCTYPE html>
+<html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LabMate Pro - Real-time Lab Collaboration</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>LabMate Pro - 实时实验室协作平台</title>
     
-    <!-- Security & CSP -->
-    <meta name="theme-color" content="#2563eb">
-    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='30' fill='%232563eb'/%3E%3Ctext x='32' y='40' text-anchor='middle' font-size='28' fill='white' font-family='Arial'%3EL%3C/text%3E%3C/svg%3E">
+    <!-- SEO Meta -->
+    <meta name="description" content="LabMate Pro - 基于Canvas的高性能虚拟实验室协作平台,支持无限画布、实时协作、云端存储">
+    <meta name="keywords" content="实验室,协作,Canvas,Vue3,Firebase,在线实验">
+    <meta name="author" content="Sine chen">
     
-    <!-- External Stylesheets -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Kalam:wght@400;700&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet" crossorigin="anonymous">
+    <!-- Theme -->
+    <meta name="theme-color" content="#3b82f6">
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='45' fill='%233b82f6'/%3E%3Ctext x='50' y='70' text-anchor='middle' font-size='60' fill='white' font-family='Arial,sans-serif' font-weight='bold'%3EL%3C/text%3E%3C/svg%3E">
     
-    <!-- Tailwind & Custom Styles -->
+    <!-- External Resources -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Kalam:wght@400;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha512-DTOQO9RWCH3ppGqcWaEA1BIZOC6xxalwEsw9c2QQeAIftl+Vegovlnee1c9QX4TctnWMn13TZye+giMm8e2LwA==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="style.css?v=20251207">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        handwriting: ['Kalam', 'cursive'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <!-- Custom Styles -->
+    <link rel="stylesheet" href="style.css">
+    
+    <!-- v-cloak for Vue -->
+    <style>
+        [v-cloak] { 
+            display: none !important; 
+        }
+        
+        /* Loading Animation */
+        .loading-spinner {
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        
+        /* Smooth Transitions */
+        * {
+            transition: background-color 0.2s ease, color 0.2s ease;
+        }
+    </style>
 </head>
-<body class="font-sans overflow-hidden">
+<body class="font-sans antialiased overflow-hidden bg-gray-50">
+    
     <!-- Loading Screen -->
-    <div id="loading-screen" class="fixed inset-0 bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center z-[99999] flex-col gap-4">
-        <div class="w-16 h-16 border-4 border-white border-t-blue-300 rounded-full animate-spin"></div>
-        <p class="text-white text-xl font-bold">LabMate Pro</p>
-        <p class="text-blue-100 text-sm">Initializing...</p>
+    <div id="loading-screen" class="fixed inset-0 bg-gradient-to-br from-blue-600 via-blue-500 to-blue-700 flex items-center justify-center z-[99999]">
+        <div class="text-center">
+            <div class="w-20 h-20 border-4 border-white border-t-transparent rounded-full loading-spinner mx-auto mb-6"></div>
+            <h1 class="text-4xl font-black text-white mb-2">LabMate Pro</h1>
+            <p class="text-blue-100 text-lg font-medium">正在初始化...</p>
+            <div class="mt-6 flex items-center justify-center gap-2 text-blue-200 text-sm">
+                <i class="fas fa-circle-notch fa-spin"></i>
+                <span>加载 Canvas 引擎中...</span>
+            </div>
+        </div>
     </div>
     
-    <!-- Main App -->
-    <div id="app" v-cloak class="w-full h-screen flex flex-col"></div>
+    <!-- Main Vue App Container -->
+    <div id="app" v-cloak></div>
     
-    <!-- Vue 3 -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/vue/3.3.4/vue.global.prod.min.js"></script>
+    <!-- Vue 3 from CDN -->
+    <script src="https://unpkg.com/vue@3.4.15/dist/vue.global.prod.js"></script>
     
     <!-- Firebase v9 Compat -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/9.22.0/firebase-app-compat.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/9.22.0/firebase-auth-compat.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/9.22.0/firebase-firestore-compat.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-storage-compat.js"></script>
     
-    <!-- Config & App -->
-    <script src="config.js?v=20251207"></script>
-    <script src="canvas.js?v=20251207"></script>
-    <script src="elements.js?v=20251207"></script>
-    <script src="connections.js?v=20251207"></script>
-    <script src="chat.js?v=20251207"></script>
-    <script src="collection.js?v=20251207"></script>
-    <script src="app.js?v=20251207"></script>
+    <!-- Application Scripts (Load in Order) -->
+    <script src="config.js"></script>
+    <script src="canvas.js"></script>
+    <script src="elements.js"></script>
+    <script src="connections.js"></script>
+    <script src="chat.js"></script>
+    <script src="collection.js"></script>
+    <script src="app.js"></script>
+    
+    <!-- Error Handler -->
+    <script>
+        window.addEventListener('error', function(e) {
+            console.error('全局错误:', e.message, e.filename, e.lineno, e.colno, e.error);
+        });
+        
+        window.addEventListener('unhandledrejection', function(e) {
+            console.error('未处理的 Promise 拒绝:', e.reason);
+        });
+    </script>
+    
 </body>
 </html>

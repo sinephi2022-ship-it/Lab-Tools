@@ -1,538 +1,635 @@
 /**
- * LabMate Pro - Chat System
- * Real-time messaging, file sharing, and friend management
+ * LabMate Pro - Chat & Friends System
+ * 聊天和好友系统 - 实时消息 + 好友管理
+ * 
+ * @author Sine chen
+ * @version 2.0.0
+ * @date 2025-12-07
  */
 
-class LabChat {
-    constructor(labId, userId, db, auth, dict) {
-        this.labId = labId;
-        this.userId = userId;
-        this.db = db;
-        this.auth = auth;
-        this.dict = dict;
-        this.messages = [];
-        this.listeners = [];
-        this.unsubscribe = null;
+// ========================================
+// 消息类
+// ========================================
+class Message {
+    constructor(senderId, receiverId, content, type = 'text') {
+        this.id = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        this.senderId = senderId;
+        this.receiverId = receiverId;
+        this.content = content;
+        this.type = type; // 'text', 'image', 'file', 'link', 'element'
+        this.timestamp = Date.now();
+        this.read = false;
+        this.metadata = {}; // 额外数据(如文件URL、图片URL等)
     }
-    
-    /**
-     * Initialize chat for a lab
-     */
-    async init() {
-        try {
-            // Get lab members
-            const labDoc = await this.db.collection('labs').doc(this.labId).get();
-            if (!labDoc.exists) throw new Error('Lab not found');
-            
-            this.members = labDoc.data().members || [];
-            
-            // Subscribe to messages
-            this.listenToMessages();
-        } catch (error) {
-            console.error('Chat init error:', error);
-        }
+
+    toJSON() {
+        return {
+            id: this.id,
+            senderId: this.senderId,
+            receiverId: this.receiverId,
+            content: this.content,
+            type: this.type,
+            timestamp: this.timestamp,
+            read: this.read,
+            metadata: this.metadata
+        };
     }
-    
-    /**
-     * Listen to real-time messages
-     */
-    listenToMessages() {
-        if (this.unsubscribe) {
-            this.unsubscribe();
-        }
-        
-        this.unsubscribe = this.db
-            .collection('labs')
-            .doc(this.labId)
-            .collection('messages')
-            .orderBy('timestamp', 'asc')
-            .limit(100)
-            .onSnapshot((snapshot) => {
-                this.messages = snapshot.docs.map(doc => ({
-                    id: doc.id,
-                    ...doc.data()
-                }));
-                this.notifyListeners();
-            }, (error) => {
-                console.error('Listen error:', error);
-            });
-    }
-    
-    /**
-     * Send a message
-     */
-    async sendMessage(content, type = 'text', metadata = {}) {
-        try {
-            let user = this.auth.currentUser;
-            
-            // If auth is not ready, wait for it
-            if (!user) {
-                user = await new Promise((resolve) => {
-                    const unsubscribe = this.auth.onAuthStateChanged((u) => {
-                        unsubscribe();
-                        resolve(u);
-                    });
-                });
-            }
-            
-            if (!user) throw new Error('Not authenticated');
-            
-            const message = {
-                userId: user.uid,
-                userName: user.displayName || 'Anonymous',
-                userEmail: user.email,
-                content,
-                type, // 'text', 'image', 'file', 'code'
-                metadata,
-                timestamp: new Date(),
-                likes: [],
-                replies: []
-            };
-            
-            await this.db
-                .collection('labs')
-                .doc(this.labId)
-                .collection('messages')
-                .add(message);
-            
-            return message;
-        } catch (error) {
-            console.error('Send message error:', error);
-            throw error;
-        }
-    }
-    
-    /**
-     * Edit a message
-     */
-    async editMessage(messageId, newContent) {
-        try {
-            await this.db
-                .collection('labs')
-                .doc(this.labId)
-                .collection('messages')
-                .doc(messageId)
-                .update({
-                    content: newContent,
-                    edited: true,
-                    editedAt: new Date()
-                });
-        } catch (error) {
-            console.error('Edit message error:', error);
-            throw error;
-        }
-    }
-    
-    /**
-     * Delete a message
-     */
-    async deleteMessage(messageId) {
-        try {
-            await this.db
-                .collection('labs')
-                .doc(this.labId)
-                .collection('messages')
-                .doc(messageId)
-                .delete();
-        } catch (error) {
-            console.error('Delete message error:', error);
-            throw error;
-        }
-    }
-    
-    /**
-     * Add reaction to message
-     */
-    async addReaction(messageId, emoji) {
-        try {
-            const user = this.auth.currentUser;
-            if (!user) throw new Error('Not authenticated');
-            
-            const msgRef = this.db
-                .collection('labs')
-                .doc(this.labId)
-                .collection('messages')
-                .doc(messageId);
-            
-            const msg = await msgRef.get();
-            const reactions = msg.data().reactions || [];
-            
-            // Check if already reacted
-            const existingReaction = reactions.find(r => r.emoji === emoji && r.userId === user.uid);
-            
-            if (existingReaction) {
-                // Remove reaction
-                await msgRef.update({
-                    reactions: reactions.filter(r => !(r.emoji === emoji && r.userId === user.uid))
-                });
-            } else {
-                // Add reaction
-                await msgRef.update({
-                    reactions: [...reactions, {
-                        emoji,
-                        userId: user.uid,
-                        userName: user.displayName || 'User'
-                    }]
-                });
-            }
-        } catch (error) {
-            console.error('Reaction error:', error);
-        }
-    }
-    
-    /**
-     * Upload file to message
-     */
-    async uploadFile(file) {
-        try {
-            const reader = new FileReader();
-            
-            return new Promise((resolve, reject) => {
-                reader.onload = async (e) => {
-                    try {
-                        const base64 = e.target.result;
-                        
-                        // Send as message with embedded data
-                        const message = await this.sendMessage(
-                            file.name,
-                            'file',
-                            {
-                                fileName: file.name,
-                                fileType: file.type,
-                                fileSize: file.size,
-                                base64: base64
-                            }
-                        );
-                        
-                        resolve(message);
-                    } catch (error) {
-                        reject(error);
-                    }
-                };
-                
-                reader.onerror = reject;
-                reader.readAsDataURL(file);
-            });
-        } catch (error) {
-            console.error('Upload file error:', error);
-            throw error;
-        }
-    }
-    
-    /**
-     * Share canvas element
-     */
-    async shareElement(elementId, elementData) {
-        try {
-            await this.sendMessage(
-                `Shared element: ${elementData.content || elementData.type}`,
-                'element',
-                {
-                    elementId,
-                    elementType: elementData.type,
-                    elementData: elementData
-                }
-            );
-        } catch (error) {
-            console.error('Share element error:', error);
-        }
-    }
-    
-    /**
-     * Register listener
-     */
-    onMessagesChange(callback) {
-        this.listeners.push(callback);
-    }
-    
-    /**
-     * Notify all listeners
-     */
-    notifyListeners() {
-        for (const listener of this.listeners) {
-            listener(this.messages);
-        }
-    }
-    
-    /**
-     * Get message count
-     */
-    getMessageCount() {
-        return this.messages.length;
-    }
-    
-    /**
-     * Get messages by user
-     */
-    getMessagesByUser(userId) {
-        return this.messages.filter(m => m.userId === userId);
-    }
-    
-    /**
-     * Search messages
-     */
-    searchMessages(query) {
-        const lowerQuery = query.toLowerCase();
-        return this.messages.filter(m => 
-            m.content.toLowerCase().includes(lowerQuery)
-        );
-    }
-    
-    /**
-     * Load private messages with friend
-     */
-    async loadPrivateMessages(chatId) {
-        try {
-            const snapshot = await this.db.collection('privateMessages')
-                .where('chatId', '==', chatId)
-                .orderBy('createdAt', 'asc')
-                .limit(100)
-                .get();
-            
-            this.privateMessages = snapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data()
-            }));
-            
-            return this.privateMessages;
-        } catch (error) {
-            console.error('Load private messages error:', error);
-            return [];
-        }
-    }
-    
-    /**
-     * Send private message
-     */
-    async sendPrivateMessage(toUid, content, type = 'text') {
-        try {
-            const chatId = [this.userId, toUid].sort().join('_');
-            
-            const message = {
-                chatId,
-                fromUid: this.userId,
-                toUid: toUid,
-                content,
-                type,
-                createdAt: new Date(),
-                readAt: null,
-                reactions: {}
-            };
-            
-            await this.db.collection('privateMessages').add(message);
-            
-            return message;
-        } catch (error) {
-            console.error('Send private message error:', error);
-            throw error;
-        }
-    }
-    
-    /**
-     * Subscribe to private chat messages
-     */
-    subscribeToPrivateChat(chatId, callback) {
-        return this.db.collection('privateMessages')
-            .where('chatId', '==', chatId)
-            .orderBy('createdAt', 'asc')
-            .onSnapshot(snapshot => {
-                const messages = snapshot.docs.map(doc => ({
-                    id: doc.id,
-                    ...doc.data()
-                }));
-                
-                this.privateMessages = messages;
-                callback?.(messages);
-            });
-    }
-    
-    /**
-     * Cleanup
-     */
-    destroy() {
-        if (this.unsubscribe) {
-            this.unsubscribe();
-        }
-        this.listeners = [];
+
+    static fromJSON(data) {
+        const msg = new Message(data.senderId, data.receiverId, data.content, data.type);
+        msg.id = data.id;
+        msg.timestamp = data.timestamp;
+        msg.read = data.read || false;
+        msg.metadata = data.metadata || {};
+        return msg;
     }
 }
 
-/**
- * Friend system
- */
-class FriendSystem {
-    constructor(userId, db, auth) {
+// ========================================
+// 好友类
+// ========================================
+class Friend {
+    constructor(userId, displayName, avatar = null) {
         this.userId = userId;
-        this.db = db;
-        this.auth = auth;
-        this.friends = [];
-        this.pendingRequests = [];
-        this.sentRequests = [];
+        this.displayName = displayName;
+        this.avatar = avatar;
+        this.status = 'offline'; // 'online', 'offline', 'busy', 'away'
+        this.lastSeen = Date.now();
+        this.addedAt = Date.now();
+        this.bio = '';
+        this.tags = []; // 好友标签
     }
-    
+
+    toJSON() {
+        return {
+            userId: this.userId,
+            displayName: this.displayName,
+            avatar: this.avatar,
+            status: this.status,
+            lastSeen: this.lastSeen,
+            addedAt: this.addedAt,
+            bio: this.bio,
+            tags: this.tags
+        };
+    }
+
+    static fromJSON(data) {
+        const friend = new Friend(data.userId, data.displayName, data.avatar);
+        friend.status = data.status || 'offline';
+        friend.lastSeen = data.lastSeen || Date.now();
+        friend.addedAt = data.addedAt || Date.now();
+        friend.bio = data.bio || '';
+        friend.tags = data.tags || [];
+        return friend;
+    }
+}
+
+// ========================================
+// 聊天管理器
+// ========================================
+class ChatManager {
+    constructor() {
+        this.currentUserId = null;
+        this.friends = new Map(); // <userId, Friend>
+        this.messages = new Map(); // <conversationId, Message[]>
+        this.unreadCounts = new Map(); // <userId, count>
+        this.listeners = new Map(); // Firestore 监听器
+        this.callbacks = {
+            onNewMessage: null,
+            onFriendStatusChange: null,
+            onFriendAdded: null,
+            onFriendRemoved: null
+        };
+    }
+
     /**
-     * Initialize friend system
+     * 初始化聊天系统
      */
-    async init() {
-        try {
-            await this.loadFriends();
-            await this.loadPendingRequests();
-        } catch (error) {
-            console.error('Friend system init error:', error);
+    async init(userId) {
+        if (!window.db || !window.auth) {
+            console.error('❌ Firebase 未初始化');
+            return false;
         }
+
+        this.currentUserId = userId;
+        console.log(`✅ 聊天系统初始化 - 用户: ${userId}`);
+
+        // 加载好友列表
+        await this.loadFriends();
+
+        // 监听好友状态变化
+        this.startFriendStatusListener();
+
+        // 监听新消息
+        this.startMessageListener();
+
+        return true;
     }
-    
+
     /**
-     * Load friends list
+     * 加载好友列表
      */
     async loadFriends() {
         try {
-            const userDoc = await this.db.collection('users').doc(this.userId).get();
-            if (userDoc.exists) {
-                this.friends = userDoc.data().friends || [];
+            const friendsRef = window.db.collection('users')
+                .doc(this.currentUserId)
+                .collection('friends');
+
+            const snapshot = await friendsRef.get();
+            
+            snapshot.forEach(doc => {
+                const data = doc.data();
+                const friend = Friend.fromJSON(data);
+                this.friends.set(friend.userId, friend);
+            });
+
+            console.log(`✅ 加载了 ${this.friends.size} 个好友`);
+        } catch (error) {
+            console.error('❌ 加载好友失败:', error);
+        }
+    }
+
+    /**
+     * 添加好友
+     */
+    async addFriend(userId, displayName, avatar = null) {
+        if (!this.currentUserId) {
+            console.error('❌ 未登录');
+            return false;
+        }
+
+        if (userId === this.currentUserId) {
+            console.error('❌ 不能添加自己为好友');
+            return false;
+        }
+
+        try {
+            const friend = new Friend(userId, displayName, avatar);
+            
+            // 保存到 Firestore
+            await window.db.collection('users')
+                .doc(this.currentUserId)
+                .collection('friends')
+                .doc(userId)
+                .set(friend.toJSON());
+
+            // 双向添加好友
+            const currentUser = window.auth.currentUser;
+            await window.db.collection('users')
+                .doc(userId)
+                .collection('friends')
+                .doc(this.currentUserId)
+                .set({
+                    userId: this.currentUserId,
+                    displayName: currentUser.displayName || currentUser.email,
+                    avatar: currentUser.photoURL,
+                    status: 'online',
+                    lastSeen: Date.now(),
+                    addedAt: Date.now(),
+                    bio: '',
+                    tags: []
+                });
+
+            this.friends.set(userId, friend);
+            this.callbacks.onFriendAdded?.(friend);
+
+            console.log(`✅ 添加好友成功: ${displayName}`);
+            return true;
+        } catch (error) {
+            console.error('❌ 添加好友失败:', error);
+            return false;
+        }
+    }
+
+    /**
+     * 删除好友
+     */
+    async removeFriend(userId) {
+        if (!this.currentUserId) return false;
+
+        try {
+            // 从 Firestore 删除
+            await window.db.collection('users')
+                .doc(this.currentUserId)
+                .collection('friends')
+                .doc(userId)
+                .delete();
+
+            // 双向删除
+            await window.db.collection('users')
+                .doc(userId)
+                .collection('friends')
+                .doc(this.currentUserId)
+                .delete();
+
+            const friend = this.friends.get(userId);
+            this.friends.delete(userId);
+            this.callbacks.onFriendRemoved?.(friend);
+
+            console.log(`✅ 删除好友成功: ${userId}`);
+            return true;
+        } catch (error) {
+            console.error('❌ 删除好友失败:', error);
+            return false;
+        }
+    }
+
+    /**
+     * 发送消息
+     */
+    async sendMessage(receiverId, content, type = 'text', metadata = {}) {
+        if (!this.currentUserId) {
+            console.error('❌ 未登录');
+            return null;
+        }
+
+        try {
+            const message = new Message(this.currentUserId, receiverId, content, type);
+            message.metadata = metadata;
+
+            // 保存到 Firestore
+            const conversationId = this.getConversationId(this.currentUserId, receiverId);
+            await window.db.collection('conversations')
+                .doc(conversationId)
+                .collection('messages')
+                .doc(message.id)
+                .set(message.toJSON());
+
+            // 更新会话信息
+            await window.db.collection('conversations')
+                .doc(conversationId)
+                .set({
+                    participants: [this.currentUserId, receiverId],
+                    lastMessage: content,
+                    lastMessageTime: message.timestamp,
+                    lastMessageSender: this.currentUserId
+                }, { merge: true });
+
+            // 添加到本地缓存
+            if (!this.messages.has(conversationId)) {
+                this.messages.set(conversationId, []);
             }
+            this.messages.get(conversationId).push(message);
+
+            console.log(`✅ 发送消息成功 -> ${receiverId}`);
+            return message;
         } catch (error) {
-            console.error('Load friends error:', error);
+            console.error('❌ 发送消息失败:', error);
+            return null;
         }
     }
-    
+
     /**
-     * Send friend request
+     * 加载聊天记录
      */
-    async sendRequest(targetUserId) {
+    async loadMessages(userId, limit = 50) {
+        if (!this.currentUserId) return [];
+
         try {
-            const user = this.auth.currentUser;
-            
-            // Add to target user's pending requests
-            await this.db.collection('users').doc(targetUserId).update({
-                pendingRequests: firebase.firestore.FieldValue.arrayUnion({
-                    from: this.userId,
-                    fromName: user.displayName || 'User',
-                    timestamp: new Date()
-                })
+            const conversationId = this.getConversationId(this.currentUserId, userId);
+            const messagesRef = window.db.collection('conversations')
+                .doc(conversationId)
+                .collection('messages')
+                .orderBy('timestamp', 'desc')
+                .limit(limit);
+
+            const snapshot = await messagesRef.get();
+            const messages = [];
+
+            snapshot.forEach(doc => {
+                const msg = Message.fromJSON(doc.data());
+                messages.push(msg);
             });
-            
-            // Track sent request
-            this.sentRequests.push(targetUserId);
+
+            messages.reverse(); // 按时间正序排列
+            this.messages.set(conversationId, messages);
+
+            console.log(`✅ 加载了 ${messages.length} 条消息`);
+            return messages;
         } catch (error) {
-            console.error('Send request error:', error);
-            throw error;
+            console.error('❌ 加载消息失败:', error);
+            return [];
         }
     }
-    
+
     /**
-     * Accept friend request
+     * 标记消息为已读
      */
-    async acceptRequest(fromUserId) {
+    async markAsRead(userId) {
+        if (!this.currentUserId) return;
+
         try {
-            const batch = this.db.batch();
-            
-            // Add to friends
-            const currentUserRef = this.db.collection('users').doc(this.userId);
-            const otherUserRef = this.db.collection('users').doc(fromUserId);
-            
-            batch.update(currentUserRef, {
-                friends: firebase.firestore.FieldValue.arrayUnion(fromUserId),
-                pendingRequests: firebase.firestore.FieldValue.arrayRemove(
-                    this.pendingRequests.find(r => r.from === fromUserId)
-                )
+            const conversationId = this.getConversationId(this.currentUserId, userId);
+            const messages = this.messages.get(conversationId) || [];
+
+            const batch = window.db.batch();
+            messages.forEach(msg => {
+                if (msg.receiverId === this.currentUserId && !msg.read) {
+                    const msgRef = window.db.collection('conversations')
+                        .doc(conversationId)
+                        .collection('messages')
+                        .doc(msg.id);
+                    batch.update(msgRef, { read: true });
+                    msg.read = true;
+                }
             });
-            
-            batch.update(otherUserRef, {
-                friends: firebase.firestore.FieldValue.arrayUnion(this.userId)
-            });
-            
+
             await batch.commit();
-            
-            await this.loadFriends();
-            await this.loadPendingRequests();
+            this.unreadCounts.set(userId, 0);
+
+            console.log(`✅ 标记消息已读: ${userId}`);
         } catch (error) {
-            console.error('Accept request error:', error);
-            throw error;
+            console.error('❌ 标记已读失败:', error);
         }
     }
-    
+
     /**
-     * Reject friend request
+     * 获取未读消息数
      */
-    async rejectRequest(fromUserId) {
-        try {
-            const request = this.pendingRequests.find(r => r.from === fromUserId);
-            
-            await this.db.collection('users').doc(this.userId).update({
-                pendingRequests: firebase.firestore.FieldValue.arrayRemove(request)
-            });
-            
-            await this.loadPendingRequests();
-        } catch (error) {
-            console.error('Reject request error:', error);
-            throw error;
-        }
+    getUnreadCount(userId) {
+        return this.unreadCounts.get(userId) || 0;
     }
-    
+
     /**
-     * Remove friend
+     * 获取总未读消息数
      */
-    async removeFriend(friendId) {
+    getTotalUnreadCount() {
+        let total = 0;
+        this.unreadCounts.forEach(count => {
+            total += count;
+        });
+        return total;
+    }
+
+    /**
+     * 监听好友状态变化
+     */
+    startFriendStatusListener() {
+        if (!this.currentUserId) return;
+
+        const friendsRef = window.db.collection('users')
+            .doc(this.currentUserId)
+            .collection('friends');
+
+        const unsubscribe = friendsRef.onSnapshot(snapshot => {
+            snapshot.docChanges().forEach(change => {
+                const data = change.doc.data();
+                const userId = change.doc.id;
+
+                if (change.type === 'modified') {
+                    const friend = this.friends.get(userId);
+                    if (friend) {
+                        const oldStatus = friend.status;
+                        friend.status = data.status;
+                        friend.lastSeen = data.lastSeen;
+                        
+                        if (oldStatus !== friend.status) {
+                            this.callbacks.onFriendStatusChange?.(friend);
+                        }
+                    }
+                }
+            });
+        });
+
+        this.listeners.set('friendStatus', unsubscribe);
+    }
+
+    /**
+     * 监听新消息
+     */
+    startMessageListener() {
+        if (!this.currentUserId) return;
+
+        this.friends.forEach((friend, userId) => {
+            const conversationId = this.getConversationId(this.currentUserId, userId);
+            const messagesRef = window.db.collection('conversations')
+                .doc(conversationId)
+                .collection('messages')
+                .where('receiverId', '==', this.currentUserId)
+                .orderBy('timestamp', 'desc')
+                .limit(1);
+
+            const unsubscribe = messagesRef.onSnapshot(snapshot => {
+                snapshot.docChanges().forEach(change => {
+                    if (change.type === 'added') {
+                        const msg = Message.fromJSON(change.doc.data());
+                        
+                        // 只处理新消息(不是历史消息)
+                        if (Date.now() - msg.timestamp < 5000) {
+                            if (!this.messages.has(conversationId)) {
+                                this.messages.set(conversationId, []);
+                            }
+                            this.messages.get(conversationId).push(msg);
+
+                            // 更新未读计数
+                            if (!msg.read) {
+                                const count = this.unreadCounts.get(userId) || 0;
+                                this.unreadCounts.set(userId, count + 1);
+                            }
+
+                            this.callbacks.onNewMessage?.(msg, friend);
+                        }
+                    }
+                });
+            });
+
+            this.listeners.set(`messages_${userId}`, unsubscribe);
+        });
+    }
+
+    /**
+     * 更新在线状态
+     */
+    async updateStatus(status) {
+        if (!this.currentUserId) return;
+
         try {
-            const batch = this.db.batch();
+            // 更新所有好友中的自己状态
+            const batch = window.db.batch();
             
-            const currentUserRef = this.db.collection('users').doc(this.userId);
-            const friendRef = this.db.collection('users').doc(friendId);
-            
-            batch.update(currentUserRef, {
-                friends: firebase.firestore.FieldValue.arrayRemove(friendId)
+            this.friends.forEach((friend, userId) => {
+                const friendRef = window.db.collection('users')
+                    .doc(userId)
+                    .collection('friends')
+                    .doc(this.currentUserId);
+                
+                batch.update(friendRef, {
+                    status: status,
+                    lastSeen: Date.now()
+                });
             });
-            
-            batch.update(friendRef, {
-                friends: firebase.firestore.FieldValue.arrayRemove(this.userId)
-            });
-            
+
             await batch.commit();
-            
-            await this.loadFriends();
+            console.log(`✅ 更新状态: ${status}`);
         } catch (error) {
-            console.error('Remove friend error:', error);
-            throw error;
+            console.error('❌ 更新状态失败:', error);
         }
     }
-    
+
     /**
-     * Load pending requests
+     * 搜索好友
      */
-    async loadPendingRequests() {
-        try {
-            const userDoc = await this.db.collection('users').doc(this.userId).get();
-            if (userDoc.exists) {
-                this.pendingRequests = userDoc.data().pendingRequests || [];
+    searchFriends(query) {
+        const results = [];
+        const lowerQuery = query.toLowerCase();
+
+        this.friends.forEach(friend => {
+            if (friend.displayName.toLowerCase().includes(lowerQuery) ||
+                friend.userId.toLowerCase().includes(lowerQuery)) {
+                results.push(friend);
             }
+        });
+
+        return results;
+    }
+
+    /**
+     * 获取会话 ID
+     */
+    getConversationId(userId1, userId2) {
+        return [userId1, userId2].sort().join('_');
+    }
+
+    /**
+     * 发送元素(分享画布元素)
+     */
+    async sendElement(receiverId, element) {
+        const content = `分享了 ${element.type} 元素`;
+        const metadata = {
+            elementType: element.type,
+            elementData: element.toJSON()
+        };
+
+        return await this.sendMessage(receiverId, content, 'element', metadata);
+    }
+
+    /**
+     * 发送文件
+     */
+    async sendFile(receiverId, file) {
+        if (!window.storage) {
+            console.error('❌ Firebase Storage 未初始化');
+            return null;
+        }
+
+        try {
+            // 上传文件
+            const storageRef = window.storage.ref();
+            const fileRef = storageRef.child(`chat_files/${Date.now()}_${file.name}`);
+            await fileRef.put(file);
+            const fileUrl = await fileRef.getDownloadURL();
+
+            // 发送消息
+            const content = `发送了文件: ${file.name}`;
+            const metadata = {
+                fileName: file.name,
+                fileSize: file.size,
+                fileType: file.type,
+                fileUrl: fileUrl
+            };
+
+            return await this.sendMessage(receiverId, content, 'file', metadata);
         } catch (error) {
-            console.error('Load pending requests error:', error);
+            console.error('❌ 发送文件失败:', error);
+            return null;
         }
     }
-    
+
     /**
-     * Get friends count
+     * 发送图片
      */
-    getFriendsCount() {
-        return this.friends.length;
+    async sendImage(receiverId, imageFile) {
+        if (!window.storage) {
+            console.error('❌ Firebase Storage 未初始化');
+            return null;
+        }
+
+        try {
+            // 上传图片
+            const storageRef = window.storage.ref();
+            const imageRef = storageRef.child(`chat_images/${Date.now()}_${imageFile.name}`);
+            await imageRef.put(imageFile);
+            const imageUrl = await imageRef.getDownloadURL();
+
+            // 发送消息
+            const content = '[图片]';
+            const metadata = {
+                imageUrl: imageUrl,
+                fileName: imageFile.name
+            };
+
+            return await this.sendMessage(receiverId, content, 'image', metadata);
+        } catch (error) {
+            console.error('❌ 发送图片失败:', error);
+            return null;
+        }
     }
-    
+
     /**
-     * Check if user is friend
+     * 清理资源
      */
-    isFriend(userId) {
-        return this.friends.includes(userId);
+    destroy() {
+        // 取消所有监听器
+        this.listeners.forEach(unsubscribe => {
+            unsubscribe();
+        });
+        this.listeners.clear();
+
+        // 清空数据
+        this.friends.clear();
+        this.messages.clear();
+        this.unreadCounts.clear();
+
+        console.log('✅ 聊天系统已清理');
     }
-    
+
     /**
-     * Get pending count
+     * 设置回调函数
      */
-    getPendingCount() {
-        return this.pendingRequests.length;
+    on(event, callback) {
+        if (this.callbacks.hasOwnProperty('on' + event.charAt(0).toUpperCase() + event.slice(1))) {
+            this.callbacks['on' + event.charAt(0).toUpperCase() + event.slice(1)] = callback;
+        }
+    }
+
+    /**
+     * 获取好友列表
+     */
+    getFriends() {
+        return Array.from(this.friends.values());
+    }
+
+    /**
+     * 获取在线好友
+     */
+    getOnlineFriends() {
+        return this.getFriends().filter(f => f.status === 'online');
+    }
+
+    /**
+     * 获取好友信息
+     */
+    getFriend(userId) {
+        return this.friends.get(userId);
+    }
+
+    /**
+     * 导出聊天记录
+     */
+    exportMessages(userId) {
+        const conversationId = this.getConversationId(this.currentUserId, userId);
+        const messages = this.messages.get(conversationId) || [];
+        return messages.map(msg => msg.toJSON());
     }
 }
 
-// Export classes
-window.LabChat = LabChat;
-window.FriendSystem = FriendSystem;
+// 导出
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = {
+        Message,
+        Friend,
+        ChatManager
+    };
+}
+
+console.log('✅ Chat System 加载完成');
