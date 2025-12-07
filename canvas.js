@@ -806,13 +806,27 @@ class CanvasEngine {
     }
 
     /**
-     * 事件系统：取消监听
+     * 取消监听
      */
     off(eventName, callback) {
         if (this.eventListeners[eventName]) {
             this.eventListeners[eventName] = this.eventListeners[eventName]
                 .filter(cb => cb !== callback);
         }
+    }
+
+    /**
+     * 标记画布需要重绘
+     */
+    markDirty() {
+        this.isDirty = true;
+    }
+
+    /**
+     * 标记画布不需要重绘
+     */
+    markClean() {
+        this.isDirty = false;
     }
 }
 
