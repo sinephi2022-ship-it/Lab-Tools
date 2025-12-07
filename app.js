@@ -225,22 +225,73 @@
                         
                         <!-- Friends Tab -->
                         <div v-if="lobbyTab === 'friends'" class="space-y-4">
-                            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                <div v-for="friend in friends" :key="friend.uid" class="bg-white rounded-lg shadow p-4">
-                                    <div class="flex items-center gap-3 mb-3">
-                                        <img :src="friend.avatar" :alt="friend.name" class="w-12 h-12 rounded-full">
-                                        <div class="flex-1">
-                                            <h3 class="font-bold">{{ friend.name }}</h3>
-                                            <p class="text-xs text-gray-500">{{ friend.email }}</p>
-                                        </div>
-                                    </div>
-                                    <button @click="openPrivateChat(friend.uid)" class="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 transition text-sm font-bold">
-                                        <i class="fa-solid fa-message"></i> {{ t('message') }}
+                            <!-- Search Users Section -->
+                            <div class="bg-white rounded-lg shadow p-4">
+                                <h3 class="font-bold text-lg mb-3">🔍 {{ t('findFriends') || 'Find Friends' }}</h3>
+                                <div class="flex gap-2 mb-4">
+                                    <input v-model="searchUserEmail" type="email" placeholder="Enter email to search..." 
+                                        class="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:border-blue-500 outline-none">
+                                    <button @click="searchUsers(searchUserEmail)" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition font-bold">
+                                        <i class="fa-solid fa-search"></i> Search
                                     </button>
                                 </div>
+                                <!-- Search Results -->
+                                <div v-if="searchResults.length > 0" class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    <div v-for="user in searchResults" :key="user.uid" class="border border-gray-300 rounded p-3 flex items-center justify-between">
+                                        <div>
+                                            <p class="font-semibold">{{ user.displayName || user.email }}</p>
+                                            <p class="text-xs text-gray-500">{{ user.email }}</p>
+                                        </div>
+                                        <button @click="sendFriendRequest(user.uid, user.email)" class="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700 transition text-sm font-bold">
+                                            <i class="fa-solid fa-user-plus"></i> Add
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
-                            <div v-if="friends.length === 0" class="text-center py-12 bg-white rounded-lg">
-                                <p class="text-gray-500 text-lg">{{ t('noFriends') }}</p>
+                            
+                            <!-- Pending Friend Requests Section -->
+                            <div v-if="friendRequests.length > 0" class="bg-yellow-50 border border-yellow-200 rounded-lg shadow p-4">
+                                <h3 class="font-bold text-lg mb-3">📬 Pending Requests ({{ friendRequests.length }})</h3>
+                                <div class="space-y-3">
+                                    <div v-for="request in friendRequests" :key="request.id" class="bg-white rounded p-3 flex items-center justify-between">
+                                        <div>
+                                            <p class="font-semibold">{{ request.fromName }}</p>
+                                            <p class="text-xs text-gray-500">{{ request.fromUid }}</p>
+                                        </div>
+                                        <div class="flex gap-2">
+                                            <button @click="acceptFriendRequest(request.id, request.fromUid)" class="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700 transition text-xs font-bold">
+                                                <i class="fa-solid fa-check"></i> Accept
+                                            </button>
+                                            <button @click="rejectFriendRequest(request.id)" class="bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700 transition text-xs font-bold">
+                                                <i class="fa-solid fa-times"></i> Reject
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Friends List -->
+                            <div>
+                                <h3 class="font-bold text-lg mb-3">👥 {{ t('myFriends') || 'My Friends' }} ({{ friends.length }})</h3>
+                                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                    <div v-for="friend in friends" :key="friend.id" class="bg-white rounded-lg shadow p-4">
+                                        <div class="flex items-center gap-3 mb-3">
+                                            <div class="w-12 h-12 rounded-full bg-gradient-to-br from-blue-400 to-purple-400 flex items-center justify-center text-white font-bold">
+                                                {{ friend.displayName?.charAt(0).toUpperCase() || '?' }}
+                                            </div>
+                                            <div class="flex-1">
+                                                <h3 class="font-bold">{{ friend.displayName || 'Unknown' }}</h3>
+                                                <p class="text-xs text-gray-500">{{ friend.email }}</p>
+                                            </div>
+                                        </div>
+                                        <button @click="openPrivateChat(friend.id, friend.displayName)" class="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 transition text-sm font-bold">
+                                            <i class="fa-solid fa-message"></i> Message
+                                        </button>
+                                    </div>
+                                </div>
+                                <div v-if="friends.length === 0" class="text-center py-12 bg-white rounded-lg">
+                                    <p class="text-gray-500 text-lg">{{ t('noFriends') }}</p>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -639,6 +690,46 @@
                         </div>
                     </div>
                 </div>
+                
+                <!-- Private Chat View -->
+                <div v-else-if="view === 'privateChat' && currentPrivateChat" class="flex-1 flex flex-col overflow-hidden">
+                    <!-- Header -->
+                    <div class="bg-white border-b px-6 py-4 flex items-center justify-between shadow-sm">
+                        <button @click="view = 'lobby'; currentPrivateChat = null" class="text-blue-600 hover:text-blue-700 font-bold">
+                            ← Back to Friends
+                        </button>
+                        <h2 class="text-xl font-bold">{{ currentPrivateChat.friendName }}</h2>
+                        <div class="text-gray-500"></div>
+                    </div>
+                    
+                    <!-- Messages Area -->
+                    <div class="flex-1 overflow-y-auto p-6 bg-gray-50 space-y-4">
+                        <div v-if="!chatMessages || chatMessages.length === 0" class="text-center text-gray-400 py-12">
+                            <i class="fa-solid fa-comments text-4xl mb-4"></i>
+                            <p>Start a conversation with {{ currentPrivateChat.friendName }}</p>
+                        </div>
+                        
+                        <div v-for="msg in chatMessages" :key="msg.id" class="flex" :class="{ 'justify-end': msg.userId === user?.uid, 'justify-start': msg.userId !== user?.uid }">
+                            <div :class="{ 'bg-blue-600 text-white': msg.userId === user?.uid, 'bg-white text-gray-900': msg.userId !== user?.uid }" class="max-w-xs lg:max-w-md rounded-lg p-3 shadow">
+                                <p class="text-sm">{{ msg.content }}</p>
+                                <p class="text-xs mt-1" :class="{ 'text-blue-100': msg.userId === user?.uid, 'text-gray-500': msg.userId !== user?.uid }">
+                                    {{ formatTime(msg.createdAt?.toDate?.() || msg.createdAt) }}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Input Area -->
+                    <div class="bg-white border-t px-6 py-4 shadow-md">
+                        <form @submit.prevent="sendChatMessage" class="flex gap-3">
+                            <input v-model="chatInput" type="text" placeholder="Type a message..." 
+                                class="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:border-blue-500 outline-none">
+                            <button type="submit" class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition font-bold">
+                                <i class="fa-solid fa-paper-plane"></i> Send
+                            </button>
+                        </form>
+                    </div>
+                </div>
             </div>
         `,
         
@@ -689,6 +780,8 @@
             const currentPrivateChat = ref(null);
             const notifications = ref([]);
             const friendRequests = ref([]);
+            const searchUserEmail = ref('');
+            const searchResults = ref([]);
             const displayLabs = computed(() => {
                 if (lobbyTab.value === 'favorites' && collection.value) {
                     return collection.value.getFavoriteLabs(labs.value);
@@ -970,14 +1063,33 @@
             };
             
             const sendChatMessage = async () => {
-                if (!chatInput.value.trim() || !chat.value) return;
+                if (!chatInput.value.trim()) return;
                 
                 try {
-                    await chat.value.sendMessage(chatInput.value);
-                    chatInput.value = '';
-                    Utils.toast(t('sent'), 'success');
+                    // Private chat message
+                    if (currentPrivateChat.value && chat.value) {
+                        await chat.value.sendPrivateMessage(
+                            currentPrivateChat.value.friendUid,
+                            chatInput.value,
+                            'text'
+                        );
+                        chatInput.value = '';
+                        Utils.toast(t('sent'), 'success');
+                        
+                        // Reload messages
+                        if (chat.value.loadPrivateMessages) {
+                            await chat.value.loadPrivateMessages(currentPrivateChat.value.id);
+                        }
+                    } 
+                    // Lab chat message
+                    else if (chat.value && chat.value.sendMessage) {
+                        await chat.value.sendMessage(chatInput.value);
+                        chatInput.value = '';
+                        Utils.toast(t('sent'), 'success');
+                    }
                 } catch (error) {
-                    Utils.toast(error.message, 'error');
+                    console.error('Send message error:', error);
+                    Utils.toast(error.message || 'Failed to send message', 'error');
                 }
             };
             
@@ -1490,7 +1602,15 @@
                     
                     // Load private messages
                     if (chat.value && chat.value.loadPrivateMessages) {
-                        await chat.value.loadPrivateMessages(chatId);
+                        const messages = await chat.value.loadPrivateMessages(chatId);
+                        chatMessages.value = messages || [];
+                    }
+                    
+                    // Subscribe to real-time updates
+                    if (chat.value && chat.value.subscribeToPrivateChat) {
+                        chat.value.subscribeToPrivateChat(chatId, (messages) => {
+                            chatMessages.value = messages || [];
+                        });
                     }
                 } catch (error) {
                     console.error('Error opening private chat:', error);
@@ -1500,7 +1620,10 @@
             
             // Search users
             const searchUsers = async (searchTerm) => {
-                if (!searchTerm.trim()) return [];
+                if (!searchTerm.trim()) {
+                    searchResults.value = [];
+                    return;
+                }
                 
                 try {
                     const snapshot = await db.collection('users')
@@ -1509,16 +1632,20 @@
                     
                     const currentUserFriends = user.value?.friends || [];
                     
-                    return snapshot.docs
+                    searchResults.value = snapshot.docs
                         .map(doc => ({
                             uid: doc.id,
                             ...doc.data()
                         }))
                         .filter(u => u.uid !== user.value.uid && !currentUserFriends.includes(u.uid));
+                    
+                    if (searchResults.value.length === 0) {
+                        Utils.toast('No users found', 'info');
+                    }
                 } catch (error) {
                     console.error('Search error:', error);
                     Utils.toast('Search failed', 'error');
-                    return [];
+                    searchResults.value = [];
                 }
             };
             
@@ -1845,7 +1972,9 @@
                 acceptFriendRequest,
                 rejectFriendRequest,
                 notifications,
-                friendRequests
+                friendRequests,
+                searchUserEmail,
+                searchResults
             };
         }
     });
