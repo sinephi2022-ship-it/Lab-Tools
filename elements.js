@@ -910,14 +910,41 @@ class ElementFactory {
     }
 }
 
+// ========================================
+// 全局别名 (为了向后兼容)
+// ========================================
+const StickyNote = NoteElement;
+const Timer = TimerElement;
+const Protocol = ProtocolElement;
+const TextBox = TextElement;
+
+// 暴露到全局作用域
+if (typeof window !== 'undefined') {
+    window.BaseElement = BaseElement;
+    window.NoteElement = NoteElement;
+    window.StickyNote = StickyNote;
+    window.TimerElement = TimerElement;
+    window.Timer = Timer;
+    window.ProtocolElement = ProtocolElement;
+    window.Protocol = Protocol;
+    window.TextElement = TextElement;
+    window.TextBox = TextBox;
+    window.FileElement = FileElement;
+    window.ElementFactory = ElementFactory;
+}
+
 // 导出
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
         BaseElement,
         NoteElement,
+        StickyNote,
         TimerElement,
+        Timer,
         ProtocolElement,
+        Protocol,
         TextElement,
+        TextBox,
         FileElement,
         ElementFactory
     };

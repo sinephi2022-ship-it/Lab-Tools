@@ -21,6 +21,9 @@ class CanvasEngine {
         this.canvas = canvasElement;
         this.ctx = canvasElement.getContext('2d');
         
+        // 事件系统
+        this.eventListeners = {};
+        
         // 摄像机参数
         this.camera = {
             x: 0,                    // 摄像机X位置
@@ -214,6 +217,7 @@ class CanvasEngine {
     addElement(element) {
         this.elements.set(element.id, element);
         this.isDirty = true;
+        this.emit('elementAdded', element);
         return element;
     }
     
@@ -224,6 +228,7 @@ class CanvasEngine {
         this.elements.delete(id);
         this.selectedElements.delete(id);
         this.isDirty = true;
+        this.emit('elementDeleted', id);
     }
     
     /**
@@ -773,6 +778,41 @@ class CanvasEngine {
     destroy() {
         this.stopRenderLoop();
         this.clearElements();
+    }
+
+    /**
+     * 事件系统：监听事件
+     */
+    on(eventName, callback) {
+        if (!this.eventListeners[eventName]) {
+            this.eventListeners[eventName] = [];
+        }
+        this.eventListeners[eventName].push(callback);
+    }
+
+    /**
+     * 事件系统：触发事件
+     */
+    emit(eventName, data) {
+        if (this.eventListeners[eventName]) {
+            this.eventListeners[eventName].forEach(callback => {
+                try {
+                    callback(data);
+                } catch (error) {
+                    console.error(`事件处理器错误 (${eventName}):`, error);
+                }
+            });
+        }
+    }
+
+    /**
+     * 事件系统：取消监听
+     */
+    off(eventName, callback) {
+        if (this.eventListeners[eventName]) {
+            this.eventListeners[eventName] = this.eventListeners[eventName]
+                .filter(cb => cb !== callback);
+        }
     }
 }
 
