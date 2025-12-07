@@ -206,17 +206,23 @@ createApp({
                 // 检查是否是新用户
                 const userDoc = await db.collection('users').doc(result.user.uid).get();
                 if (!userDoc.exists) {
+                    // Google 新用户需要先完成用户资料设置
+                    console.warn('⚠️ Google 新用户，请先完成用户资料设置');
                     await db.collection('users').doc(result.user.uid).set({
                         email: result.user.email,
-                        displayName: result.user.displayName,
-                        avatar: result.user.photoURL,
+                        displayName: result.user.displayName || result.user.email.split('@')[0],
+                        avatar: result.user.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${result.user.uid}`,
                         createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-                        lang: currentLang.value
+                        lang: currentLang.value,
+                        friends: [],
+                        favorites: [],
+                        currentLab: '',
+                        lastSeen: Date.now()
                     });
+                    console.log('✅ Google 用户资料已创建:', result.user.email);
                 }
                 
                 console.log('✅ Google登录成功:', result.user.email);
-                showAuthModal.value = false;
             } catch (error) {
                 console.error('❌ Google登录失败:', error);
                 authForm.error = getErrorMessage(error);
@@ -797,47 +803,39 @@ createApp({
                     user.value = firebaseUser;
                     console.log('✅ 用户已登录:', firebaseUser.email);
                     
-                    // 加载或创建用户资料
+                    // 加载用户资料（不自动创建）
                     const userDoc = await db.collection('users').doc(firebaseUser.uid).get();
                     if (userDoc.exists) {
                         userProfile.value = userDoc.data();
                         console.log('✅ 用户资料已加载');
+                        
+                        if (userProfile.value.lang) {
+                            currentLang.value = userProfile.value.lang;
+                        }
+                        
+                        // 加载实验室
+                        console.log('📚 开始加载实验室...');
+                        await loadMyLabs();
+                        console.log('✅ 我的实验室加载完成');
+                        
+                        await loadPublicLabs();
+                        console.log('✅ 公开实验室加载完成');
+                        
+                        await loadFavoriteLabs();
+                        console.log('✅ 收藏实验室加载完成');
+                        
+                        console.log('🎉 所有数据加载完成！');
                     } else {
-                        // 自动创建用户资料
-                        const newUserProfile = {
-                            uid: firebaseUser.uid,
-                            email: firebaseUser.email,
-                            displayName: firebaseUser.displayName || firebaseUser.email.split('@')[0],
-                            avatar: firebaseUser.photoURL || '',
-                            createdAt: new Date(),
-                            lang: 'zh',
-                            role: 'user'
-                        };
-                        await db.collection('users').doc(firebaseUser.uid).set(newUserProfile);
-                        userProfile.value = newUserProfile;
-                        console.log('✨ 自动创建了用户资料');
+                        // 用户账号存在但没有资料文档，说明是新用户需要完成注册
+                        console.warn('⚠️ 新用户已注册，但还未创建用户资料');
+                        user.value = null;
+                        userProfile.value = null;
+                        myLabs.value = [];
+                        publicLabs.value = [];
+                        favoriteLabs.value = [];
+                        await firebase.auth().signOut();
+                        console.log('已退出登录，请重新注册完整资料');
                     }
-                    
-                    if (userProfile.value.lang) {
-                        currentLang.value = userProfile.value.lang;
-                    }
-                    
-                    // 加载实验室
-                    console.log('📚 开始加载实验室...');
-                    await loadMyLabs();
-                    console.log('✅ 我的实验室加载完成');
-                    
-                    await loadPublicLabs();
-                    console.log('✅ 公开实验室加载完成');
-                    
-                    await loadFavoriteLabs();
-                    console.log('✅ 收藏实验室加载完成');
-                    
-                    console.log('🎉 所有数据加载完成！');
-                } else {
-                    console.log('👤 用户未登录');
-                    user.value = null;
-                    userProfile.value = null;
                     myLabs.value = [];
                     publicLabs.value = [];
                     favoriteLabs.value = [];
