@@ -63,7 +63,18 @@ class LabChat {
      */
     async sendMessage(content, type = 'text', metadata = {}) {
         try {
-            const user = this.auth.currentUser;
+            let user = this.auth.currentUser;
+            
+            // If auth is not ready, wait for it
+            if (!user) {
+                user = await new Promise((resolve) => {
+                    const unsubscribe = this.auth.onAuthStateChanged((u) => {
+                        unsubscribe();
+                        resolve(u);
+                    });
+                });
+            }
+            
             if (!user) throw new Error('Not authenticated');
             
             const message = {

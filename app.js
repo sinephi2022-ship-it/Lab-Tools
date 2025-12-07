@@ -867,7 +867,7 @@
             };
             
             const createLab = async () => {
-                if (!createLabForm.value.title.trim()) {
+                if (!createLabForm.title || !createLabForm.title.trim()) {
                     Utils.toast('Please enter a lab name', 'error');
                     return;
                 }
@@ -877,13 +877,13 @@
                     const now = new Date().toISOString();
                     const labData = {
                         id: labId,
-                        title: createLabForm.value.title,
-                        description: createLabForm.value.description,
+                        title: createLabForm.title,
+                        description: createLabForm.description,
                         ownerId: user.value.uid,
                         ownerName: user.value.displayName || user.value.email,
                         ownerAvatar: user.value.photoURL,
-                        isPublic: createLabForm.value.isPublic,
-                        password: createLabForm.value.password || null,
+                        isPublic: createLabForm.isPublic,
+                        password: createLabForm.password || null,
                         members: [user.value.uid],
                         memberNames: [user.value.displayName || user.value.email],
                         createdAt: now,
@@ -905,8 +905,11 @@
                     });
                     
                     showCreateLabModal.value = false;
-                    const title = createLabForm.value.title;
-                    createLabForm.value = { title: '', description: '', isPublic: true, password: '' };
+                    const title = createLabForm.title;
+                    createLabForm.title = '';
+                    createLabForm.description = '';
+                    createLabForm.isPublic = true;
+                    createLabForm.password = '';
                     Utils.toast(`Lab "${title}" created!`, 'success');
                     
                     // Load labs and enter new lab
