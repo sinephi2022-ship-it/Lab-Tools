@@ -687,6 +687,8 @@
             const showPreviewModal = ref(false);
             const previewContent = ref(null);
             const currentPrivateChat = ref(null);
+            const notifications = ref([]);
+            const friendRequests = ref([]);
             const displayLabs = computed(() => {
                 if (lobbyTab.value === 'favorites' && collection.value) {
                     return collection.value.getFavoriteLabs(labs.value);
@@ -1270,6 +1272,57 @@
                             await loadPublicLabs();
                             await loadFriends();
                         }
+                        
+                        // Load friend requests
+                        await loadFriendRequests();
+                        
+                        // Monitor friend requests in real-time
+                        db.collection('friendRequests')
+                            .where('toUid', '==', u.uid)
+                            .where('status', '==', 'pending')
+                            .onSnapshot(snapshot => {
+                                friendRequests.value = snapshot.docs.map(doc => ({
+                                    id: doc.id,
+                                    ...doc.data()
+                                }));
+                                
+                                // Show notification for new requests
+                                if (friendRequests.value.length > 0) {
+                                    notifications.value.push({
+                                        id: Date.now(),
+                                        type: 'friendRequest',
+                                        message: `You have ${friendRequests.value.length} friend request(s)`,
+                                        createdAt: new Date(),
+                                        read: false
+                                    });
+                                }
+                            });
+                        
+                        // Monitor invitations (if user is invited to a lab)
+                        db.collection('labInvitations')
+                            .where('invitedEmail', '==', u.email)
+                            .where('status', '==', 'pending')
+                            .onSnapshot(snapshot => {
+                                const invitations = snapshot.docs.map(doc => ({
+                                    id: doc.id,
+                                    ...doc.data()
+                                }));
+                                
+                                // Show notification for new invitations
+                                if (invitations.length > 0) {
+                                    invitations.forEach(inv => {
+                                        notifications.value.push({
+                                            id: `inv_${inv.id}`,
+                                            type: 'labInvitation',
+                                            message: `You've been invited to "${inv.labName}" lab`,
+                                            labId: inv.labId,
+                                            invitationId: inv.id,
+                                            createdAt: new Date(),
+                                            read: false
+                                        });
+                                    });
+                                }
+                            });
                     }
                 });
             });
@@ -1426,13 +1479,121 @@
                     };
                     view.value = 'privateChat';
                     
-                    // Load private messages (implement in chat module)
+                    // Load private messages
                     if (chat.value && chat.value.loadPrivateMessages) {
                         await chat.value.loadPrivateMessages(chatId);
                     }
                 } catch (error) {
                     console.error('Error opening private chat:', error);
                     Utils.toast('Failed to open chat', 'error');
+                }
+            };
+            
+            // Search users
+            const searchUsers = async (searchTerm) => {
+                if (!searchTerm.trim()) return [];
+                
+                try {
+                    const snapshot = await db.collection('users')
+                        .where('email', '==', searchTerm.toLowerCase())
+                        .get();
+                    
+                    return snapshot.docs
+                        .map(doc => ({
+                            uid: doc.id,
+                            ...doc.data()
+                        }))
+                        .filter(u => u.uid !== user.value.uid);
+                } catch (error) {
+                    console.error('Search error:', error);
+                    return [];
+                }
+            };
+            
+            // Send friend request
+            const sendFriendRequest = async (toUid, toEmail) => {
+                if (!user.value) return;
+                
+                try {
+                    const requestId = Utils.generateId();
+                    
+                    await db.collection('friendRequests').doc(requestId).set({
+                        id: requestId,
+                        fromUid: user.value.uid,
+                        fromName: user.value.displayName || user.value.email,
+                        toUid: toUid,
+                        toEmail: toEmail,
+                        status: 'pending',
+                        createdAt: new Date()
+                    });
+                    
+                    Utils.toast('Friend request sent!', 'success');
+                } catch (error) {
+                    console.error('Send friend request error:', error);
+                    Utils.toast('Failed to send request', 'error');
+                }
+            };
+            
+            // Load friend requests
+            const loadFriendRequests = async () => {
+                if (!user.value) return;
+                
+                try {
+                    const snapshot = await db.collection('friendRequests')
+                        .where('toUid', '==', user.value.uid)
+                        .where('status', '==', 'pending')
+                        .get();
+                    
+                    return snapshot.docs.map(doc => ({
+                        id: doc.id,
+                        ...doc.data()
+                    }));
+                } catch (error) {
+                    console.error('Load friend requests error:', error);
+                    return [];
+                }
+            };
+            
+            // Accept friend request
+            const acceptFriendRequest = async (requestId, fromUid) => {
+                if (!user.value) return;
+                
+                try {
+                    // Update both users' friend lists
+                    await db.collection('users').doc(user.value.uid).update({
+                        friends: firebase.firestore.FieldValue.arrayUnion(fromUid)
+                    });
+                    
+                    await db.collection('users').doc(fromUid).update({
+                        friends: firebase.firestore.FieldValue.arrayUnion(user.value.uid)
+                    });
+                    
+                    // Update request status
+                    await db.collection('friendRequests').doc(requestId).update({
+                        status: 'accepted',
+                        acceptedAt: new Date()
+                    });
+                    
+                    Utils.toast('Friend request accepted!', 'success');
+                    await loadFriends();
+                } catch (error) {
+                    console.error('Accept friend request error:', error);
+                    Utils.toast('Failed to accept request', 'error');
+                }
+            };
+            
+            // Reject friend request
+            const rejectFriendRequest = async (requestId) => {
+                try {
+                    await db.collection('friendRequests').doc(requestId).update({
+                        status: 'rejected',
+                        rejectedAt: new Date()
+                    });
+                    
+                    Utils.toast('Friend request rejected', 'success');
+                } catch (error) {
+                    console.error('Reject friend request error:', error);
+                    Utils.toast('Failed to reject request', 'error');
                 }
             };
             
@@ -1445,7 +1606,7 @@
                     console.error('Error copying code:', error);
                     Utils.toast('Failed to copy code', 'error');
                 }
-            };
+            }
             
             // Show preview modal
             const showPreview = (content) => {
@@ -1664,7 +1825,15 @@
                 downloadPreviewContent,
                 addPreviewToCollection,
                 sharePreviewContent,
-                joinLabWithCode
+                joinLabWithCode,
+                // New friend request and notification functions
+                searchUsers,
+                sendFriendRequest,
+                loadFriendRequests,
+                acceptFriendRequest,
+                rejectFriendRequest,
+                notifications,
+                friendRequests
             };
         }
     });

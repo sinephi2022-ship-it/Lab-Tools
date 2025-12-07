@@ -268,6 +268,76 @@ class LabChat {
     }
     
     /**
+     * Load private messages with friend
+     */
+    async loadPrivateMessages(chatId) {
+        try {
+            const snapshot = await this.db.collection('privateMessages')
+                .where('chatId', '==', chatId)
+                .orderBy('createdAt', 'asc')
+                .limit(100)
+                .get();
+            
+            this.privateMessages = snapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+            }));
+            
+            return this.privateMessages;
+        } catch (error) {
+            console.error('Load private messages error:', error);
+            return [];
+        }
+    }
+    
+    /**
+     * Send private message
+     */
+    async sendPrivateMessage(toUid, content, type = 'text') {
+        try {
+            const chatId = [this.userId, toUid].sort().join('_');
+            
+            const message = {
+                chatId,
+                fromUid: this.userId,
+                toUid: toUid,
+                content,
+                type,
+                createdAt: new Date(),
+                readAt: null,
+                reactions: {}
+            };
+            
+            await this.db.collection('privateMessages').add(message);
+            
+            return message;
+        } catch (error) {
+            console.error('Send private message error:', error);
+            throw error;
+        }
+    }
+    
+    /**
+     * Subscribe to private chat messages
+     */
+    subscribeToPrivateChat(chatId, callback) {
+        return this.db.collection('privateMessages')
+            .where('chatId', '==', chatId)
+            .orderBy('createdAt', 'desc')
+            .onSnapshot(snapshot => {
+                const messages = snapshot.docs
+                    .reverse()
+                    .map(doc => ({
+                        id: doc.id,
+                        ...doc.data()
+                    }));
+                
+                this.privateMessages = messages;
+                callback?.(messages);
+            });
+    }
+    
+    /**
      * Cleanup
      */
     destroy() {

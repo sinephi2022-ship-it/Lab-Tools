@@ -3,6 +3,47 @@
  * Infinite canvas with pan, zoom, and element management
  */
 
+// History/Undo-Redo system
+class CanvasHistory {
+    constructor(maxSteps = 50) {
+        this.stack = [];
+        this.currentIndex = -1;
+        this.maxSteps = maxSteps;
+    }
+    
+    push(state) {
+        this.stack = this.stack.slice(0, this.currentIndex + 1);
+        this.stack.push(JSON.parse(JSON.stringify(state)));
+        this.currentIndex++;
+        if (this.stack.length > this.maxSteps) {
+            this.stack.shift();
+            this.currentIndex--;
+        }
+    }
+    
+    undo() {
+        if (this.currentIndex > 0) {
+            return this.stack[--this.currentIndex];
+        }
+        return null;
+    }
+    
+    redo() {
+        if (this.currentIndex < this.stack.length - 1) {
+            return this.stack[++this.currentIndex];
+        }
+        return null;
+    }
+    
+    canUndo() {
+        return this.currentIndex > 0;
+    }
+    
+    canRedo() {
+        return this.currentIndex < this.stack.length - 1;
+    }
+}
+
 class LabCanvas {
     constructor(containerEl, options = {}) {
         this.container = containerEl;
@@ -22,6 +63,10 @@ class LabCanvas {
         this.zoom = 1;
         this.minZoom = 0.1;
         this.maxZoom = 5;
+        
+        // History/Undo-Redo
+        this.history = new CanvasHistory();
+        this.lastSaveState = null;
         
         // Element management
         this.elements = [];
@@ -225,6 +270,11 @@ class LabCanvas {
      * Mouse up event handler
      */
     onMouseUp(e) {
+        // Save state if we were dragging elements
+        if (this.isDragging && this.draggedElements.size > 0) {
+            this.saveState();
+        }
+        
         this.isDragging = false;
         this.isPanning = false;
         this.draggedElements.clear();
@@ -379,6 +429,18 @@ class LabCanvas {
                 this.selectedElements.add(el.id);
             }
             this.isDirty = true;
+        } else if (e.ctrlKey && e.key === 'z') {
+            e.preventDefault();
+            this.undo();
+        } else if ((e.ctrlKey && e.key === 'y') || (e.ctrlKey && e.shiftKey && e.key === 'Z')) {
+            e.preventDefault();
+            this.redo();
+        } else if (e.ctrlKey && e.key === 'c') {
+            e.preventDefault();
+            this.copySelected();
+        } else if (e.ctrlKey && e.key === 'v') {
+            e.preventDefault();
+            this.pasteClipboard();
         }
     }
     
@@ -417,6 +479,8 @@ class LabCanvas {
      * Add element to canvas
      */
     addElement(element) {
+        this.saveState();
+        
         const id = element.id || `elem_${Date.now()}_${Math.random()}`;
         const newElement = {
             id,
@@ -449,6 +513,10 @@ class LabCanvas {
      * Delete all selected elements
      */
     deleteSelectedElements() {
+        if (this.selectedElements.size === 0) return;
+        
+        this.saveState();
+        
         for (const id of this.selectedElements) {
             const element = this.getElement(id);
             if (element) {
@@ -476,6 +544,89 @@ class LabCanvas {
             this.onElementUpdate?.(el);
             this.isDirty = true;
         }
+    }
+    
+    /**
+     * Save state for undo/redo
+     */
+    saveState() {
+        const state = this.export();
+        this.history.push(state);
+        this.lastSaveState = state;
+    }
+    
+    /**
+     * Undo last action
+     */
+    undo() {
+        const state = this.history.undo();
+        if (state) {
+            this.import(state);
+            this.isDirty = true;
+        }
+    }
+    
+    /**
+     * Redo last undo
+     */
+    redo() {
+        const state = this.history.redo();
+        if (state) {
+            this.import(state);
+            this.isDirty = true;
+        }
+    }
+    
+    /**
+     * Copy selected elements
+     */
+    copySelected() {
+        if (this.selectedElements.size === 0) return;
+        
+        const selected = [];
+        for (const id of this.selectedElements) {
+            const el = this.getElement(id);
+            if (el) {
+                selected.push(JSON.parse(JSON.stringify(el)));
+            }
+        }
+        
+        this.clipboard = {
+            elements: selected,
+            timestamp: Date.now()
+        };
+    }
+    
+    /**
+     * Paste from clipboard
+     */
+    pasteClipboard() {
+        if (!this.clipboard || !this.clipboard.elements) return;
+        
+        this.saveState();
+        
+        const newIds = [];
+        const offsetX = 20;
+        const offsetY = 20;
+        
+        for (const el of this.clipboard.elements) {
+            const newEl = {
+                ...JSON.parse(JSON.stringify(el)),
+                id: `elem_${Date.now()}_${Math.random()}`,
+                x: el.x + offsetX,
+                y: el.y + offsetY
+            };
+            
+            this.elements.push(newEl);
+            newIds.push(newEl.id);
+        }
+        
+        this.selectedElements.clear();
+        for (const id of newIds) {
+            this.selectedElements.add(id);
+        }
+        
+        this.isDirty = true;
     }
     
     /**
