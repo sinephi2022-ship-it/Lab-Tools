@@ -253,9 +253,9 @@ createApp({
             if (!user.value) return;
             
             try {
+                // 移除 orderBy 避免需要复合索引
                 const snapshot = await db.collection('labs')
                     .where('owner', '==', user.value.uid)
-                    .orderBy('updatedAt', 'desc')
                     .get();
                 
                 myLabs.value = snapshot.docs.map(doc => ({
@@ -265,17 +265,25 @@ createApp({
                     updatedAt: doc.data().updatedAt?.toDate()
                 }));
                 
+                // 在客户端排序
+                myLabs.value.sort((a, b) => {
+                    const timeA = a.updatedAt?.getTime() || 0;
+                    const timeB = b.updatedAt?.getTime() || 0;
+                    return timeB - timeA;
+                });
+                
                 console.log(`✅ 加载了 ${myLabs.value.length} 个实验室`);
             } catch (error) {
                 console.error('❌ 加载实验室失败:', error);
+                myLabs.value = [];
             }
         };
         
         const loadPublicLabs = async () => {
             try {
+                // 移除 orderBy 避免需要复合索引
                 const snapshot = await db.collection('labs')
                     .where('isPublic', '==', true)
-                    .orderBy('updatedAt', 'desc')
                     .limit(50)
                     .get();
                 
@@ -285,8 +293,16 @@ createApp({
                     createdAt: doc.data().createdAt?.toDate(),
                     updatedAt: doc.data().updatedAt?.toDate()
                 }));
+                
+                // 在客户端排序
+                publicLabs.value.sort((a, b) => {
+                    const timeA = a.updatedAt?.getTime() || 0;
+                    const timeB = b.updatedAt?.getTime() || 0;
+                    return timeB - timeA;
+                });
             } catch (error) {
                 console.error('❌ 加载公开实验室失败:', error);
+                publicLabs.value = [];
             }
         };
         

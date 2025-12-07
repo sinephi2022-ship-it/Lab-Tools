@@ -122,15 +122,31 @@ Project-Rebuild/
 
 ## 🐛 问题排查
 
+### 问题 1: Firebase 查询错误 ✅ 已修复
+**错误信息**: `The query requires an index`  
+**状态**: v2.0.1 已自动修复,使用客户端排序  
+**影响**: 无需创建 Firebase 索引即可正常运行
+
+### 问题 2: Tailwind CSS 生产警告
+**警告信息**: `cdn.tailwindcss.com should not be used in production`  
+**状态**: 这是开发环境信息,不影响功能  
+**生产部署**: 可改用 Tailwind CLI 消除此警告
+
+### 问题 3: Font Awesome 跨域警告
+**警告信息**: `Tracking Prevention blocked access to storage`  
+**状态**: 正常,不影响图标显示  
+**原因**: 浏览器反追踪功能
+
 ### 白屏或加载失败
-1. 检查浏览器控制台 (F12)
+1. 检查浏览器控制台 (F12) 查看 ✅/❌ 符号
 2. 确认网络连接正常
 3. 清空缓存重新加载 (Ctrl+Shift+R)
+4. 查看 FIX-REPORT.md 获取详细信息
 
-### Firebase 错误
-1. 检查 `config.js` 中的 Firebase 配置
-2. 确认 Firestore 安全规则已设置
-3. 查看 Firebase Console 配额
+### 实验室列表为空
+- 这是正常的初始状态
+- 点击 "创建实验室" 添加数据
+- 需要先登录才能看到个人实验室
 
 ### 性能问题
 1. 元素过多时 (>1000) 可能卡顿
