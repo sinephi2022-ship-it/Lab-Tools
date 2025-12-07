@@ -845,6 +845,15 @@ createApp({
                 }
             }, 30000);
             
+            // 立即尝试隐藏加载屏幕（备用方案，针对用户未登录的情况）
+            setTimeout(() => {
+                const loadingScreen = document.querySelector('[v-if="isLoading"]');
+                if (loadingScreen && loadingScreen.offsetHeight > 0) {
+                    console.log('📢 尝试通过 DOM 隐藏加载屏幕');
+                    loadingScreen.style.display = 'none';
+                }
+            }, 5000);
+            
             // 键盘快捷键
             document.addEventListener('keydown', (e) => {
                 if (e.ctrlKey || e.metaKey) {
