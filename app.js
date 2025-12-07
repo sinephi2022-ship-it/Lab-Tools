@@ -853,9 +853,11 @@ createApp({
                         await firebase.auth().signOut();
                         console.log('已退出登录，请重新注册完整资料');
                     }
-                    myLabs.value = [];
-                    publicLabs.value = [];
-                    favoriteLabs.value = [];
+                } else {
+                    // 用户未登录
+                    user.value = null;
+                    userProfile.value = null;
+                    currentView.value = 'lobby';
                 }
                 
                 isLoading.value = false;
