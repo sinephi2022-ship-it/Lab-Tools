@@ -90,14 +90,14 @@
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-storage-compat.js"></script>
     
     <!-- Application Scripts (Load in Order) -->
-    <!-- v2.1.0: 完整功能版本 -->
-    <script src="config.js?v=2.1.0"></script>
-    <script src="canvas.js?v=2.1.0"></script>
-    <script src="elements.js?v=2.1.0"></script>
-    <script src="connections.js?v=2.1.0"></script>
-    <script src="chat.js?v=2.1.0"></script>
-    <script src="collection.js?v=2.1.0"></script>
-    <script src="app.js?v=2.1.0"></script>
+    <!-- v2.2.0: 加载屏幕修复 -->
+    <script src="config.js?v=2.2.0"></script>
+    <script src="canvas.js?v=2.2.0"></script>
+    <script src="elements.js?v=2.2.0"></script>
+    <script src="connections.js?v=2.2.0"></script>
+    <script src="chat.js?v=2.2.0"></script>
+    <script src="collection.js?v=2.2.0"></script>
+    <script src="app.js?v=2.2.0"></script>
     
     <!-- Error Handler -->
     <script>
@@ -108,6 +108,24 @@
         window.addEventListener('unhandledrejection', function(e) {
             console.error('未处理的 Promise 拒绝:', e.reason);
         });
+        
+        // 自动隐藏加载屏幕 (备用方案)
+        window.hideLoadingScreen = function() {
+            const loadingScreen = document.querySelector('[v-if="isLoading"]');
+            if (loadingScreen) {
+                loadingScreen.style.display = 'none';
+                console.log('✅ 手动隐藏加载屏幕');
+            }
+        };
+        
+        // 30秒后如果还没有隐藏，强制隐藏
+        setTimeout(() => {
+            const loadingScreen = document.querySelector('[v-if="isLoading"]');
+            if (loadingScreen && loadingScreen.style.display !== 'none') {
+                loadingScreen.style.display = 'none';
+                console.warn('⚠️ 30秒超时，强制隐藏加载屏幕');
+            }
+        }, 30000);
     </script>
     
 </body>
