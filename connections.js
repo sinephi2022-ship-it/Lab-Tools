@@ -118,6 +118,12 @@ class ConnectionManager {
         const connectionId = `conn_${Date.now()}_${Math.random()}`;
         const connection = new Connection(connectionId, fromElementId, toElementId, data);
         this.connections.push(connection);
+        
+        // Trigger onConnectionCreate callback if available
+        if (this.canvas && this.canvas.onConnectionCreate) {
+            this.canvas.onConnectionCreate(connection);
+        }
+        
         return connection;
     }
     

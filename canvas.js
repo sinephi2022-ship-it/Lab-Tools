@@ -46,9 +46,20 @@ class LabCanvas {
         this.lastPanTime = 0;
         this.lastPanPos = null;
         
-        // Performance
+        // Performance monitoring
         this.animationFrameId = null;
         this.isDirty = true;
+        this.fps = 0;
+        this.frameCount = 0;
+        this.lastFpsTime = Date.now();
+        this.showFPS = false; // Debug flag
+        
+        // Event callbacks
+        this.onElementDoubleClick = null;
+        this.onSelectionChange = null;
+        this.onElementUpdate = null;
+        this.onConnectionCreate = null;
+        this.onElementDelete = null;
         
         this.setupEventListeners();
         this.startRenderLoop();
@@ -221,6 +232,12 @@ class LabCanvas {
         this.panStart = null;
         this.lastPanPos = null;
         this.selectedBox = null;
+        
+        // 触发选择改变回调
+        if (this.onSelectionChange && this.selectedElements.size > 0) {
+            this.onSelectionChange(Array.from(this.selectedElements));
+        }
+        
         this.isDirty = true;
         
         // Apply momentum if panning
@@ -413,6 +430,8 @@ class LabCanvas {
             metadata: element.metadata || {}
         };
         this.elements.push(newElement);
+        // 触发元素创建回调（可选）
+        // this.onElementCreate?.(newElement);
         this.isDirty = true;
         return newElement;
     }
@@ -431,6 +450,10 @@ class LabCanvas {
      */
     deleteSelectedElements() {
         for (const id of this.selectedElements) {
+            const element = this.getElement(id);
+            if (element) {
+                this.onElementDelete?.(element);
+            }
             this.removeElement(id);
         }
         this.selectedElements.clear();
@@ -450,6 +473,7 @@ class LabCanvas {
         const el = this.getElement(id);
         if (el) {
             Object.assign(el, data);
+            this.onElementUpdate?.(el);
             this.isDirty = true;
         }
     }
@@ -522,6 +546,15 @@ class LabCanvas {
      */
     startRenderLoop() {
         const render = () => {
+            // 计算FPS
+            this.frameCount++;
+            const now = Date.now();
+            if (now - this.lastFpsTime >= 1000) {
+                this.fps = this.frameCount;
+                this.frameCount = 0;
+                this.lastFpsTime = now;
+            }
+            
             if (this.isDirty) {
                 this.render();
                 this.isDirty = false;
@@ -720,15 +753,40 @@ class LabCanvas {
             this.ctx.fillStyle = 'rgba(37, 99, 235, 0.8)';
             this.ctx.fillText(`Selected: ${this.selectedElements.size}`, 10, this.height - 25);
         }
+        
+        // Show FPS if debug mode enabled
+        if (this.showFPS) {
+            this.ctx.save();
+            this.ctx.resetTransform();
+            this.ctx.fillStyle = '#000';
+            this.ctx.font = 'bold 14px monospace';
+            this.ctx.fillText(`FPS: ${this.fps.toFixed(1)}`, 10, 20);
+            this.ctx.fillText(`Elements: ${this.elements.length}`, 10, 40);
+            this.ctx.fillText(`Zoom: ${this.zoom.toFixed(2)}x`, 10, 60);
+            this.ctx.restore();
+        }
     }
     
     /**
-     * Export canvas data
+     * Export canvas data (包含连接线和元数据)
      */
     export() {
+        const connections = this.connectionManager ? 
+            (this.connectionManager.export?.() || []) : [];
+        
         return {
             elements: JSON.parse(JSON.stringify(this.elements)),
-            view: { panX: this.panX, panY: this.panY, zoom: this.zoom }
+            connections: connections,
+            view: { 
+                panX: this.panX, 
+                panY: this.panY, 
+                zoom: this.zoom 
+            },
+            metadata: {
+                exportedAt: new Date().toISOString(),
+                elementCount: this.elements.length,
+                connectionCount: connections.length
+            }
         };
     }
     
@@ -737,12 +795,171 @@ class LabCanvas {
      */
     import(data) {
         this.elements = data.elements || [];
+        
+        // 导入连接线
+        if (data.connections && this.connectionManager) {
+            if (this.connectionManager.import) {
+                this.connectionManager.import(data.connections);
+            }
+        }
+        
         if (data.view) {
             this.panX = data.view.panX;
             this.panY = data.view.panY;
             this.zoom = data.view.zoom;
         }
         this.isDirty = true;
+    }
+    
+    /**
+     * Set zoom level to specific value
+     */
+    setZoom(zoomLevel, centerX = this.width / 2, centerY = this.height / 2) {
+        const oldZoom = this.zoom;
+        this.zoom = Math.max(this.minZoom, Math.min(zoomLevel, this.maxZoom));
+        
+        // 围绕指定点缩放
+        const worldX = (centerX - this.panX) / oldZoom;
+        const worldY = (centerY - this.panY) / oldZoom;
+        
+        this.panX = centerX - worldX * this.zoom;
+        this.panY = centerY - worldY * this.zoom;
+        
+        this.isDirty = true;
+    }
+    
+    /**
+     * Pan to specific world coordinates
+     */
+    panTo(worldX, worldY) {
+        this.panX = this.width / 2 - worldX * this.zoom;
+        this.panY = this.height / 2 - worldY * this.zoom;
+        this.isDirty = true;
+    }
+    
+    /**
+     * Reset view to initial state
+     */
+    resetView() {
+        this.zoom = 1;
+        this.panX = 0;
+        this.panY = 0;
+        this.selectedElements.clear();
+        this.isDirty = true;
+    }
+    
+    /**
+     * Clear all elements and connections
+     */
+    clear() {
+        this.elements = [];
+        this.selectedElements.clear();
+        if (this.connectionManager) {
+            this.connectionManager.connections = [];
+        }
+        this.isDirty = true;
+    }
+    
+    /**
+     * Export current view as PNG image
+     */
+    exportImage(filename = 'canvas-export.png') {
+        // 创建临时canvas用于导出
+        const exportCanvas = document.createElement('canvas');
+        const context = exportCanvas.getContext('2d');
+        
+        if (this.elements.length === 0) {
+            console.warn('No elements to export');
+            return;
+        }
+        
+        // 计算内容区域
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        for (const el of this.elements) {
+            minX = Math.min(minX, el.x);
+            minY = Math.min(minY, el.y);
+            maxX = Math.max(maxX, el.x + (el.width || 200));
+            maxY = Math.max(maxY, el.y + (el.height || 150));
+        }
+        
+        const padding = 40;
+        const width = (maxX - minX) + padding * 2;
+        const height = (maxY - minY) + padding * 2;
+        
+        exportCanvas.width = Math.max(width, 400);
+        exportCanvas.height = Math.max(height, 300);
+        
+        // 白色背景
+        context.fillStyle = '#ffffff';
+        context.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
+        
+        // 应用变换
+        context.translate(padding - minX, padding - minY);
+        
+        // 绘制网格
+        context.strokeStyle = '#e2e8f0';
+        context.lineWidth = 0.5;
+        for (let x = 0; x < width; x += this.gridSize) {
+            context.beginPath();
+            context.moveTo(x, 0);
+            context.lineTo(x, height);
+            context.stroke();
+        }
+        for (let y = 0; y < height; y += this.gridSize) {
+            context.beginPath();
+            context.moveTo(0, y);
+            context.lineTo(width, y);
+            context.stroke();
+        }
+        
+        // 绘制所有元素
+        for (const el of this.elements) {
+            this.drawElementForExport(context, el);
+        }
+        
+        // 下载
+        exportCanvas.toBlob((blob) => {
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+        });
+    }
+    
+    /**
+     * Helper: Draw element for export
+     */
+    drawElementForExport(ctx, element) {
+        const { x, y, width = 200, height = 150, type, content = '', color = '#ffffff' } = element;
+        
+        // 绘制元素框
+        ctx.fillStyle = color;
+        ctx.fillRect(x, y, width, height);
+        
+        // 绘制边框
+        ctx.strokeStyle = '#94a3b8';
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(x, y, width, height);
+        
+        // 绘制类型标签
+        ctx.fillStyle = '#64748b';
+        ctx.font = 'bold 12px Arial';
+        ctx.fillText(type.toUpperCase(), x + 6, y + 18);
+        
+        // 绘制内容（简化版）
+        if (content) {
+            ctx.fillStyle = '#1e293b';
+            ctx.font = '12px Arial';
+            const text = String(content).substring(0, 30);
+            const lines = text.split('\\n');
+            lines.slice(0, 3).forEach((line, i) => {
+                ctx.fillText(line, x + 6, y + 40 + i * 14);
+            });
+        }
     }
     
     /**
