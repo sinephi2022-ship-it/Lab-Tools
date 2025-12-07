@@ -1191,7 +1191,7 @@
                         elements: currentLab.value.elements,
                         view: currentLab.value.view || {}
                     });
-                    canvasElements.value = canvas.value.elements;
+                    canvasElements.value = canvas.value.elements || [];
                 } else {
                     canvasElements.value = [];
                 }
@@ -1199,7 +1199,7 @@
                 // Load existing connections
                 if (currentLab.value?.connections && canvas.value.connectionManager) {
                     canvas.value.connectionManager.import(currentLab.value.connections);
-                    connections.value = canvas.value.connectionManager.connections;
+                    connections.value = canvas.value.connectionManager.connections || [];
                 }
                 
                 // Handle element selection
@@ -1222,7 +1222,7 @@
                 });
                 
                 canvas.value.elements.push(newEl.toJSON());
-                canvasElements.value = canvas.value.elements;
+                canvasElements.value = canvas.value.elements || [];
                 
                 Utils.toast(t('added'), 'success');
             };
@@ -1235,7 +1235,7 @@
                     color: editingColor.value
                 });
                 
-                canvasElements.value = canvas.value.elements;
+                canvasElements.value = canvas.value.elements || [];
             };
             
             const deleteSelectedElement = () => {
@@ -1243,7 +1243,7 @@
                 
                 canvas.value.removeElement(selectedElementId.value);
                 selectedElementId.value = null;
-                canvasElements.value = canvas.value.elements;
+                canvasElements.value = canvas.value.elements || [];
             };
             
             const zoomToFit = () => {
@@ -1275,7 +1275,7 @@
                     canvas.value.selectedElements.add(duplicate.id);
                 });
                 
-                canvasElements.value = canvas.value.elements;
+                canvasElements.value = canvas.value.elements || [];
                 Utils.toast('Duplicated successfully', 'success');
             };
             
@@ -1309,7 +1309,7 @@
                     selected.forEach(e => e.y = maxY - (e.height || 60));
                 }
                 
-                canvasElements.value = canvas.value.elements;
+                canvasElements.value = canvas.value.elements || [];
                 Utils.toast(`Aligned to ${direction}`, 'success');
             };
             
