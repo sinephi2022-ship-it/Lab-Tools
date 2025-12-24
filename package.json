@@ -1,0 +1,29 @@
+{
+  "name": "labmate-pro",
+  "version": "1.0.0",
+  "description": "在线虚拟实验室协作平台",
+  "main": "index.js",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "keywords": [
+    "lab",
+    "collaboration",
+    "canvas",
+    "vue"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@vueuse/core": "^10.7.0",
+    "firebase": "^10.7.0",
+    "pinia": "^3.0.4",
+    "vue": "^3.4.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^4.5.0",
+    "vite": "^5.0.0"
+  }
+}
