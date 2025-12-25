@@ -36,7 +36,7 @@ export function listenRunningTimers(labId: string, cb: (timers: RunningTimer[]) 
         const ts = (t.startedAt as unknown as Timestamp | null);
         const startedAtMs = ts ? ts.toMillis() : Date.now();
         const endsAt = new Date(startedAtMs + t.durationSec * 1000);
-        return { labId, name: t.name, startedAtMs, durationSec: t.durationSec, endsAt };
+        return { id: t.id, labId, name: t.name, startedAtMs, durationSec: t.durationSec, endsAt };
       });
     cb(timers);
   });
