@@ -192,6 +192,52 @@ npm run build
 # 将 dist 目录部署到静态托管服务
 ```
 
+## 简易版（Finder 风格）
+
+本项目内置了一个全新“简易版”实验系统（无需画布）：
+
+- 登录后访问：`#/simple`
+- 多人实验室：在大厅创建“多人实验室”，所有用户可见
+- 功能：便签、计时器（全局提醒）、Protocol 粘贴生成、文件/图片上传与预览、报告导出（Markdown）
+
+### 路由
+
+- 大厅（简易版）：`#/simple`
+- 实验室（简易版）：`#/simple/:labId`
+
+### 数据结构（labs_simple）
+
+```
+{
+	"id": "string",
+	"name": "string",
+	"isPublic": true,
+	"owner": "uid",
+	"createdAt": "ISO",
+	"items": [
+		{ "id":"string", "type":"note", "title":"便签", "content":"..." },
+		{ "id":"string", "type":"timer", "title":"计时器", "duration":600, "isRunning":false, "startTime":null },
+		{ "id":"string", "type":"protocol", "title":"Protocol", "steps":[ {"text":"...","done":false, "note":"..."} ] },
+		{ "id":"string", "type":"file", "title":"文件", "url":"...", "mimeType":"...", "size":12345 },
+		{ "id":"string", "type":"image", "title":"图片", "url":"...", "mimeType":"image/png", "size":12345 }
+	]
+}
+```
+
+### 权限
+
+- 读取公开实验室：所有人
+- 写入：需用户已登录（默认匿名登录已启用）
+
+### 部署到 GitHub Pages
+
+可使用 Vite 构建并部署：
+
+```bash
+npm run build
+# 将 dist/ 发布到 GitHub Pages
+```
+
 ## 贡献指南
 
 1. Fork 项目

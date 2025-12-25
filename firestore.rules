@@ -1,0 +1,40 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 用户文档
+    match /users/{userId} {
+      allow read, write: if request.auth != null && (request.auth.uid == userId || request.auth.token.admin == true);
+    }
+    
+    // 画布实验室集合（原版）
+    match /labs/{labId} {
+      allow read: if true;
+      allow create: if request.auth != null;
+      allow update, delete: if request.auth != null && (resource.data.owner == request.auth.uid || request.auth.token.admin == true);
+      
+      // 实验室中的子集合
+      match /{document=**} {
+        allow read: if true;
+        allow write: if request.auth != null;
+      }
+    }
+
+    // 简易版实验室集合（Finder 风格）
+    match /labs_simple/{labId} {
+      // 公开实验室任何人可读；私有实验室需登录
+      allow read: if resource.data.isPublic == true || request.auth != null;
+      allow create: if request.auth != null;
+      allow update, delete: if request.auth != null && (resource.data.owner == request.auth.uid || request.auth.token.admin == true);
+    }
+    
+    // 朋友关系
+    match /friends/{friendship} {
+      allow read, write: if request.auth != null;
+    }
+    
+    // 其他集合：允许所有认证用户读写
+    match /{document=**} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}

@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Firebase 测试</title>
+</head>
+<body>
+    <h1>Firebase 连接测试</h1>
+    <div id="status">正在初始化...</div>
+    <div id="error"></div>
+    
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
+        import { getAuth, signInAnonymously } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
+        import { getFirestore } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyDcOJyJEpVsc-asPeYvqaKnZF0oa7J3xfI",
+            authDomain: "labtool-5eb5e.firebaseapp.com",
+            projectId: "labtool-5eb5e",
+            storageBucket: "labtool-5eb5e.firebasestorage.app",
+            messagingSenderId: "686046008242",
+            appId: "1:686046008242:web:b5516ebf4eedea5afa4aab",
+            measurementId: "G-86F1TSWE56"
+        };
+
+        const status = document.getElementById('status');
+        const error = document.getElementById('error');
+
+        try {
+            console.log('初始化 Firebase...');
+            status.textContent = '正在初始化 Firebase...';
+            
+            const app = initializeApp(firebaseConfig);
+            console.log('Firebase 应用初始化成功');
+            status.textContent = 'Firebase 应用初始化成功';
+            
+            const auth = getAuth(app);
+            console.log('Firebase Auth 初始化成功');
+            status.textContent = 'Firebase Auth 初始化成功';
+            
+            const db = getFirestore(app);
+            console.log('Firebase Firestore 初始化成功');
+            status.textContent = 'Firebase Firestore 初始化成功';
+            
+            // 测试匿名登录
+            status.textContent = '正在测试匿名登录...';
+            signInAnonymously(auth)
+                .then((result) => {
+                    console.log('匿名登录成功:', result.user);
+                    status.textContent = `匿名登录成功！用户ID: ${result.user.uid}`;
+                    status.style.color = 'green';
+                })
+                .catch((err) => {
+                    console.error('匿名登录失败:', err);
+                    error.textContent = `匿名登录失败: ${err.message}`;
+                    error.style.color = 'red';
+                });
+                
+        } catch (err) {
+            console.error('Firebase 初始化失败:', err);
+            error.textContent = `Firebase 初始化失败: ${err.message}`;
+            error.style.color = 'red';
+            status.style.color = 'red';
+        }
+    </script>
+</body>
+</html>

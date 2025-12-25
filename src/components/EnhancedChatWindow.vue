@@ -101,7 +101,11 @@ export default {
   },
   computed: {
     currentChatName() {
-      return this.chatStore.currentChat?.name || '聊天'
+      // currentChat 是 chatId 字符串，不是对象
+      const chatId = this.chatStore.currentChat
+      if (chatId === 'lobby-chat') return '大厅聊天'
+      if (chatId?.startsWith('lab-')) return '实验室聊天'
+      return '聊天'
     },
     onlineStatus() {
       const onlineCount = this.participants.filter(p => p.online).length

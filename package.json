@@ -18,12 +18,16 @@
   "license": "ISC",
   "dependencies": {
     "@vueuse/core": "^10.7.0",
-    "firebase": "^10.7.0",
+    "firebase": "^10.8.0",
     "pinia": "^3.0.4",
-    "vue": "^3.4.0"
+    "vue": "^3.4.0",
+    "markdown-it": "^14.1.0",
+    "markdown-it-katex": "^2.0.3",
+    "katex": "^0.16.9"
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^4.5.0",
+    "firebase-tools": "^15.1.0",
     "vite": "^5.0.0"
   }
 }

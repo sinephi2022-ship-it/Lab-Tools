@@ -1,0 +1,144 @@
+/* Canvas Elements Enhancement Styles */
+@import url('https://fonts.googleapis.com/css2?family=Indie+Flower&display=swap');
+
+/* 便签颜色 */
+.bg-note-yellow {
+  background-color: #fef3c7;
+}
+
+.bg-note-pink {
+  background-color: #fce7f3;
+}
+
+.bg-note-blue {
+  background-color: #dbeafe;
+}
+
+.bg-note-green {
+  background-color: #dcfce7;
+}
+
+.bg-note-purple {
+  background-color: #f3e8ff;
+}
+
+.bg-note-orange {
+  background-color: #fed7aa;
+}
+
+.font-handwriting {
+  font-family: 'Indie Flower', cursive;
+}
+
+/* Canvas 元素阴影 */
+.shadow-card {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* 元素选中环 */
+.element-selected {
+  border: 2px solid #3b82f6;
+  box-shadow: 0 0 0 2px #ffffff, 0 0 0 4px #3b82f6;
+}
+
+/* 计时器数字显示 */
+.font-digital {
+  font-family: 'Courier New', monospace;
+  letter-spacing: 0.1em;
+}
+
+/* 物理按钮样式 */
+.phy-button {
+  position: relative;
+  padding: 0.5rem 1rem;
+  font-weight: bold;
+  border-radius: 0.5rem;
+  transition: all 0.2s;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.phy-button:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
+}
+
+.phy-button:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* Canvas 背景网格 */
+.bg-dots {
+  background-image:
+    radial-gradient(
+      circle,
+      #d1d5db 1px,
+      transparent 1px
+    );
+  background-size: 20px 20px;
+  background-position: 0 0;
+}
+
+/* 拖动时的元素效果 */
+.is-dragging {
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+  z-index: 40;
+  opacity: 0.95;
+}
+
+/* 连接线容器 */
+.connections-layer {
+  pointer-events: none;
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
+/* 响应式调整 */
+@media (max-width: 768px) {
+  .phy-button {
+    font-size: 0.875rem;
+    padding: 0.25rem 0.5rem;
+  }
+
+  .font-digital {
+    font-size: 1.5rem;
+  }
+}
+
+/* 动画 */
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-pop-in {
+  animation: pop-in 0.3s ease-out;
+}
+
+.animate-slide-up {
+  animation: slide-up 0.3s ease-out;
+}
+
+/* Glow effect for timers */
+.text-shadow-glow {
+  text-shadow: 0 0 10px rgba(239, 68, 68, 0.5);
+}

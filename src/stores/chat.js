@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
-import { sendMessage, subscribeToChat } from '../utils/firebase'
+import { sendMessage, subscribeToChat, initChat, addLabChat, subscribeToLabChats } from '../utils/firebase'
+import { useAuthStore } from './auth'
 
 export const useChatStore = defineStore('chat', {
   state: () => ({
@@ -13,22 +14,63 @@ export const useChatStore = defineStore('chat', {
   }),
   
   actions: {
-    async sendMessage(chatId, text) {
-      if (!text.trim()) return
+    async sendMessage(chatId, text, userId) {
+      if (!text || !text.trim()) return
+      const auth = useAuthStore()
+      const uid = userId || auth.user?.uid
+      
+      if (!chatId) {
+        console.error('发送消息失败: chatId 缺失')
+        return
+      }
+      
+      if (!uid) {
+        console.error('发送消息失败: 用户未登录')
+        return
+      }
       
       const message = {
-        id: Date.now().toString(),
-        sender: '当前用户',
+        sender: auth.profile?.displayName || '匿名用户',
         text: text.trim(),
-        timestamp: Date.now(),
-        isOwn: true
+        userId: uid,
+        timestamp: new Date().toISOString()
       }
       
       try {
-        await sendMessage(chatId, message)
-        this.messages.push(message)
+        // 仅发送到Firebase，不要手动push。订阅回调会同步消息
+        await sendMessage(chatId, message, uid)
       } catch (error) {
         console.error('发送消息失败:', error)
+      }
+    },
+    
+    async sendLabMessage(labId, text, userId) {
+      if (!text || !text.trim()) return
+      const auth = useAuthStore()
+      const uid = userId || auth.user?.uid
+      
+      if (!labId) {
+        console.error('发送实验室消息失败: labId 缺失')
+        return
+      }
+      
+      if (!uid) {
+        console.error('发送实验室消息失败: 用户未登录')
+        return
+      }
+      
+      const message = {
+        sender: auth.profile?.displayName || '匿名用户',
+        text: text.trim(),
+        userId: uid,
+        timestamp: new Date().toISOString()
+      }
+      
+      try {
+        // 仅发送到Firebase，不要手动push。订阅回调会同步消息
+        await addLabChat(labId, message, uid)
+      } catch (error) {
+        console.error('发送实验室消息失败:', error)
       }
     },
     
@@ -38,19 +80,39 @@ export const useChatStore = defineStore('chat', {
       
       return subscribeToChat(chatId, (chatData) => {
         if (chatData.messages) {
+          const auth = useAuthStore()
           this.messages = chatData.messages.map(msg => ({
             ...msg,
-            isOwn: msg.sender === '当前用户'
+            isOwn: msg.userId === auth.user?.uid
           }))
         }
       })
     },
     
-    openChat(chatId) {
+    async initializeChat(labId, user) {
+      try {
+        if (!labId || !user) {
+          console.error('初始化聊天失败: labId 或 user 缺失')
+          return
+        }
+        
+        const chatId = `lab-${labId}`
+        await initChat(chatId)
+        this.currentChat = chatId
+      } catch (error) {
+        console.error('初始化聊天失败:', error)
+      }
+    },
+
+    async openChat(chatId) {
       this.currentChat = chatId
       this.isChatOpen = true
-      this.subscribeToChat(chatId)
       this.unreadCount = 0
+      
+      // 初始化聊天文档
+      await initChat(chatId)
+      
+      this.subscribeToChat(chatId)
     },
     
     closeChat() {
