@@ -1,109 +1,125 @@
-# LabMate Pro v2
+# Lab Tools (Web)
 
-一个简易版的虚拟实验室协作平台，支持双端使用。
+A minimal, Finder‑style **Lab Assistant** for organizing experimental work:
+- Firebase Auth (email/password)
+- Personal & shared labs
+- Finder‑like file manager inside each lab
+- Notes (Markdown + tables + KaTeX math)
+- Protocols: paste → auto checklist (each step editable + notes)
+- Timers: multiple timers, synced via Firestore, **global notification** + one‑click jump back
+- Upload & preview files (images inline)
+- Export report (.md + .html)
 
-## 🚀 功能特性
+## Tech
+- Vite + React + TypeScript
+- TailwindCSS
+- Firebase: Auth, Firestore, Storage
 
-- 🔐 **用户认证系统** - 支持邮箱注册登录
-- 🧪 **实验室管理** - 私人实验室和多人协作实验室
-- 📁 **类 Finder 文件管理** - 直观的文件管理系统
-- 📝 **便签功能** - 创建彩色便签记录信息
-- ⏰ **计时器功能** - 支持全局提醒和快速跳转
-- 📋 **协议功能** - 智能粘贴生成可勾选步骤列表
-- 📄 **文件管理** - 支持文件上传和预览
-- 📊 **导出报告** - 一键导出实验报告
+---
 
-## 🛠️ 技术栈
-
-- **前端**: Vue 3 + TypeScript + Element Plus
-- **状态管理**: Pinia
-- **路由**: Vue Router
-- **后端**: Firebase (Authentication + Firestore + Storage)
-- **部署**: GitHub Pages
-
-## 📦 安装和运行
-
-### 本地开发
+## Local development
 
 ```bash
-# 克隆项目
-git clone https://github.com/yourusername/labmate-pro-v2.git
-cd labmate-pro-v2
-
-# 安装依赖
 npm install
-
-# 启动开发服务器
 npm run dev
 ```
 
-### 构建和部署
+Open: http://localhost:5173
 
-```bash
-# 构建生产版本
-npm run build
+---
 
-# 预览构建结果
-npm run preview
-```
+## Deploy to GitHub Pages
 
-## 🎯 使用指南
+This repo includes a GitHub Pages workflow:
+- Push to `main` → build → deploy to Pages.
 
-### 1. 注册和登录
-- 访问应用首页
-- 点击注册创建账户
-- 使用邮箱和密码登录
+Steps:
+1. In GitHub repo settings → **Pages**:
+   - Source: **GitHub Actions**
+2. Push to `main`.
 
-### 2. 创建实验室
-- 在大厅点击"私人实验室"或"多人实验室"
-- 输入实验室名称
-- 开始使用实验室
+Vite base path is automatically set for GitHub Actions.
 
-### 3. 管理实验项目
-- 使用工具栏创建便签、计时器、协议
-- 上传文件和图片
-- 使用网格或列表视图管理项目
+---
 
-### 4. 协作功能
-- 多人实验室支持实时协作
-- 所有成员可以看到实验室内容
-- 支持导出实验报告
+## Firebase setup (required)
 
-## 🔧 配置
+Enable in Firebase console:
+- **Authentication** → Email/Password
+- **Firestore Database**
+- **Storage**
 
-### Firebase 配置
+The app uses the Firebase config embedded in `src/lib/firebase.ts`.
 
-在 `src/utils/firebase.ts` 中配置您的 Firebase 项目：
+### Recommended Firestore rules
 
-```typescript
-const firebaseConfig = {
-  apiKey: "your-api-key",
-  authDomain: "your-auth-domain",
-  projectId: "your-project-id",
-  storageBucket: "your-storage-bucket",
-  messagingSenderId: "your-sender-id",
-  appId: "your-app-id"
+> This app expects:
+> - A user can read labs they are a member of.
+> - Public labs are visible in lobby, but items remain member‑only by default.
+
+```js
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() { return request.auth != null; }
+    function isMember(labId) {
+      return isSignedIn() && request.auth.uid in get(/databases/$(database)/documents/labs/$(labId)).data.members;
+    }
+
+    match /labs/{labId} {
+      allow read: if isSignedIn() && (resource.data.isPublic == true || request.auth.uid in resource.data.members);
+      allow create: if isSignedIn() && request.resource.data.ownerUid == request.auth.uid;
+      allow update, delete: if isSignedIn() && request.auth.uid in resource.data.members;
+
+      match /items/{itemId} {
+        allow read, write: if isMember(labId);
+      }
+    }
+  }
 }
 ```
 
-### GitHub Pages 部署
+### Recommended Storage rules
 
-1. 将代码推送到 GitHub 仓库
-2. 在仓库设置中启用 GitHub Pages
-3. 选择 `gh-pages` 分支作为源
-4. 自动部署将触发
+```js
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    function isSignedIn() { return request.auth != null; }
+    function isMember(labId) {
+      return isSignedIn() && request.auth.uid in
+        firestore.get(/databases/(default)/documents/labs/$(labId)).data.members;
+    }
 
-## 📱 移动端支持
+    match /labs/{labId}/uploads/{allPaths=**} {
+      allow read, write: if isMember(labId);
+    }
+  }
+}
+```
 
-应用采用响应式设计，支持：
-- 移动设备浏览器
-- 平板设备
-- 桌面设备
+---
 
-## 🤝 贡献
+## Data model (Firestore)
 
-欢迎提交 Issue 和 Pull Request！
+- `labs/{labId}`
+  - `name: string`
+  - `type: "personal" | "shared"`
+  - `ownerUid: string`
+  - `members: string[]`
+  - `isPublic: boolean`
 
-## 📄 许可证
+- `labs/{labId}/items/{itemId}`
+  - common fields: `type`, `name`, `parentId`, `createdBy`, `createdAt`, `updatedAt`
+  - type‑specific fields:
+    - note: `content`
+    - protocol: `raw`, `steps[]`
+    - timer: `durationSec`, `status`, `startedAt`
+    - file: `storagePath`, `downloadUrl`, `mimeType`, `size`
 
-MIT License
+---
+
+## Notes
+
+- Invite flow (email → add member) can be added later; currently membership is a `members[]` array on the lab document.
+- Timer “done” state is best‑effort (clients mark timers done when time reaches 0).

@@ -1,21 +1,15 @@
-import { defineConfig } from 'vite'
-import vue from '@vitejs/plugin-vue'
-import { resolve } from 'path'
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
 
-export default defineConfig({
-  plugins: [vue()],
-  resolve: {
-    alias: {
-      '@': resolve(__dirname, 'src')
-    }
-  },
-  base: '/labmate-pro-v2/',
-  server: {
-    port: 3000,
-    host: true
-  },
-  build: {
-    outDir: 'dist',
-    assetsDir: 'assets'
-  }
-})
+export default defineConfig(({ mode }) => {
+  // GitHub Pages serves the app under /<repo>/
+  const isGhPages = process.env.GITHUB_ACTIONS === "true";
+  return {
+    plugins: [react()],
+    base: isGhPages ? "/Lab-Tools/" : "/",
+    server: { port: 5173 },
+    build: {
+      sourcemap: mode !== "production",
+    },
+  };
+});
